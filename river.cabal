@@ -12,10 +12,14 @@ category:            Compilers/Interpreters
 build-type:          Simple
 cabal-version:       >=1.10
 
-executable river
-  main-is: Main.hs
+
+library
   hs-source-dirs: src
   default-language: Haskell2010
+
+  exposed-modules:
+    River.Source.Parser
+    River.Source.Syntax
 
   build-depends:
       base                 >= 4.7  && < 4.8
@@ -26,3 +30,30 @@ executable river
     , parsers              >= 0.12 && < 0.13
     , text                 >= 1.2  && < 1.3
     , trifecta             >= 1.5  && < 1.6
+
+
+executable riverc
+  main-is: riverc.hs
+  hs-source-dirs: main
+
+  ghc-options: -Wall
+  default-language: Haskell2010
+
+  build-depends:
+      river
+    , base   >= 4.7  && < 4.8
+    , either >= 4.4  && < 4.5
+
+
+test-suite test
+  type: exitcode-stdio-1.0
+  main-is: test.hs
+  hs-source-dirs: test
+
+  ghc-options: -Wall
+  default-language: Haskell2010
+
+  build-depends:
+      river
+    , base       >= 4.7 && < 4.8
+    , QuickCheck >= 2.8 && < 2.9

@@ -46,7 +46,7 @@ pProgram = do
 
 ------------------------------------------------------------------------
 
-pStatement :: P (Statement Delta) 
+pStatement :: P (Statement Delta)
 pStatement = try pDeclaration
          <|> try pAssignment
          <|>     pReturn
@@ -100,7 +100,7 @@ opTable = [[prefix "-" (\p -> Unary  p Neg)],
             binary "%" (\p -> Binary p Mod) AssocLeft],
            [binary "+" (\p -> Binary p Add) AssocLeft,
             binary "-" (\p -> Binary p Sub) AssocLeft]]
-        
+
 ------------------------------------------------------------------------
 
 pIdentifier :: (DeltaParsing m, TokenParsing m) => m (Identifier Delta)
