@@ -1,10 +1,15 @@
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE RankNTypes #-}
+{-# LANGUAGE StandaloneDeriving #-}
 
 module River.Source.Parser where
 
-import           Control.Applicative ((<$>), (<|>), (<*>), (<*), (*>), pure)
+import           Control.Applicative (Applicative(..), Alternative(..), (<$>))
+import           Control.Monad (MonadPlus(..))
 import           Control.Monad.Trans.Either
 
+import qualified Data.ByteString.UTF8 as UTF8
+import           Data.Monoid (Monoid(..))
 import qualified Data.Text as T
 
 import           Text.Parser.Expression
@@ -12,7 +17,7 @@ import qualified Text.Parser.Token.Highlight as H
 import           Text.Parser.Token.Style
 import qualified Text.PrettyPrint.ANSI.Leijen as ANSI
 import           Text.Trifecta
-import           Text.Trifecta.Delta (Delta)
+import           Text.Trifecta.Delta (Delta(..))
 import           Text.Trifecta.Parser (parseFromFile)
 import           Text.Trifecta.Result (Result(..))
 
@@ -24,18 +29,25 @@ data ParseError =
     TrifectaError ANSI.Doc
   deriving (Show)
 
+------------------------------------------------------------------------
+
 parseProgram :: FilePath -> EitherT ParseError IO (Program Delta)
 parseProgram path = EitherT $ do
-  result <- parseFromFileEx pProgram path
+  result <- parseFromFileEx (runRiverParser pProgram) path
   case result of
     Failure e -> return (Left (TrifectaError e))
     Success x -> return (Right x)
 
+parseProgramFromString :: FilePath -> String -> Either ParseError (Program Delta)
+parseProgramFromString name source =
+  let delta = Directed (UTF8.fromString name) 0 0 0 0
+  in case parseString (runRiverParser pProgram) delta source of
+    Failure e -> Left (TrifectaError e)
+    Success x -> Right x
+
 ------------------------------------------------------------------------
 
-type P a = (Monad m, TokenParsing m, DeltaParsing m) => m a
-
-pProgram :: P (Program Delta)
+pProgram :: RiverParser (Program Delta)
 pProgram = do
     whiteSpace
     pos <- position
@@ -46,13 +58,13 @@ pProgram = do
 
 ------------------------------------------------------------------------
 
-pStatement :: P (Statement Delta)
-pStatement = try pDeclaration
-         <|> try pAssignment
-         <|>     pReturn
+pStatement :: RiverParser (Statement Delta)
+pStatement = pDeclaration
+         <|> pReturn
+         <|> pAssignment
          <?> "statement"
 
-pDeclaration :: P (Statement Delta)
+pDeclaration :: RiverParser (Statement Delta)
 pDeclaration = do
     pos   <- position
     pReserved "int"
@@ -61,13 +73,13 @@ pDeclaration = do
     semi
     return (Declaration pos ident expr)
 
-pAssignment :: P (Statement Delta)
+pAssignment :: RiverParser (Statement Delta)
 pAssignment = Assignment <$> position
                          <*> pIdentifier
                          <*> pAssignOp
                          <*> pExpression <* semi
 
-pAssignOp :: P (Maybe BinaryOp)
+pAssignOp :: RiverParser (Maybe BinaryOp)
 pAssignOp = pOperator "="  *> pure Nothing
         <|> pOperator "+=" *> pure (Just Add)
         <|> pOperator "-=" *> pure (Just Sub)
@@ -75,23 +87,23 @@ pAssignOp = pOperator "="  *> pure Nothing
         <|> pOperator "/=" *> pure (Just Div)
         <|> pOperator "%=" *> pure (Just Mod)
 
-pReturn :: P (Statement Delta)
+pReturn :: RiverParser (Statement Delta)
 pReturn = Return <$> position
                  <*> (pReserved "return" *> pExpression) <* semi
 
 ------------------------------------------------------------------------
 
-pExpression :: P (Expression Delta)
+pExpression :: RiverParser (Expression Delta)
 pExpression = buildExpressionParser opTable pExpression0 <?> "expression"
 
-pExpression0 :: P (Expression Delta)
+pExpression0 :: RiverParser (Expression Delta)
 pExpression0 = parens (pExpression) <|> try pLiteral <|> pVariable
 
-pLiteral :: P (Expression Delta)
-pLiteral = Literal <$> position <*> integer
+pLiteral :: RiverParser (Expression Delta)
+pLiteral = Literal <$> position <*> natural <?> "literal"
 
-pVariable :: P (Expression Delta)
-pVariable = Variable <$> position <*> pIdentifier
+pVariable :: RiverParser (Expression Delta)
+pVariable = Variable <$> position <*> pIdentifier <?> "variable"
 
 opTable :: DeltaParsing m => [[Operator m (Expression Delta)]]
 opTable = [[prefix "-" (\p -> Unary  p Neg)],
@@ -103,12 +115,11 @@ opTable = [[prefix "-" (\p -> Unary  p Neg)],
 
 ------------------------------------------------------------------------
 
-pIdentifier :: (DeltaParsing m, TokenParsing m) => m (Identifier Delta)
+pIdentifier :: (DeltaParsing m, TokenParsing m) => m Identifier
 pIdentifier = token . highlight H.Identifier $ do
-    pos <- position
     x   <-       letter   <|> char '_'
     xs  <- many (alphaNum <|> char '_')
-    return (Identifier pos (T.pack (x:xs)))
+    return (Identifier (T.pack (x:xs)))
 
 pReserved :: TokenParsing m => String -> m String
 pReserved name = token (highlight H.ReservedIdentifier (string name))
@@ -127,3 +138,29 @@ prefix :: DeltaParsing m => String -> (Delta -> a -> a)               -> Operato
 
 binary  name fun assoc = Infix  (fun <$> (position <* pOperator name)) assoc
 prefix  name fun       = Prefix (fun <$> (position <* pOperator name))
+
+------------------------------------------------------------------------
+-- Parser Monad
+
+newtype RiverParser a = RiverParser { runRiverParser :: Parser a }
+  deriving ( Monoid
+           , Functor
+           , Applicative
+           , Alternative
+           , Monad
+           , MonadPlus
+           , CharParsing
+           , DeltaParsing
+           , MarkParsing Delta )
+
+deriving instance Parsing RiverParser
+
+instance TokenParsing RiverParser where
+  someSpace   = RiverParser (buildSomeSpaceParser someSpace commentStyle)
+  nesting     = RiverParser . nesting . runRiverParser
+  highlight h = RiverParser . highlight h . runRiverParser
+  semi        = token (char ';' <?> ";")
+  token p     = p <* whiteSpace
+
+commentStyle :: CommentStyle
+commentStyle = CommentStyle "/*" "*/" "//" True

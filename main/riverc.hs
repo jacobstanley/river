@@ -1,9 +1,13 @@
+{-# LANGUAGE LambdaCase #-}
+
 module Main (main) where
 
-import Control.Monad.Trans.Either (runEitherT)
-import System.Environment (getArgs)
+import           Control.Monad.Trans.Either (runEitherT)
 
-import River.Source.Parser
+import           River.Source.Parser
+import           River.Source.Pretty
+
+import           System.Environment (getArgs)
 
 ------------------------------------------------------------------------
 
@@ -16,4 +20,6 @@ main = do
         p <- runEitherT (parseProgram arg)
         case p of
           Left (TrifectaError xx) -> print xx
-          Right pp                -> print pp
+          Right program           -> do
+            print program
+            putStrLn (displayProgram program)
