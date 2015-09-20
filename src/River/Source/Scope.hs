@@ -13,23 +13,24 @@ import           River.Source.Syntax
 
 fvOfProgram :: Ord a => Program a -> Map Identifier (Set a)
 fvOfProgram = \case
-  Program _ f -> fvOfFragment f
+  Program _ ss -> fvOfStatements ss
 
-fvOfFragment :: Ord a => Fragment a -> Map Identifier (Set a)
-fvOfFragment = \case
-  Declaration _ n mx f
+fvOfStatements :: Ord a => [Statement a] -> Map Identifier (Set a)
+fvOfStatements []     = Map.empty
+fvOfStatements (s:ss) = case s of
+  Declaration _ n mx
    -> let
-          fx = maybe Map.empty fvOfExpression mx
-          ff = fvOfFragment f
+          fx  = maybe Map.empty fvOfExpression mx
+          fss = fvOfStatements ss
       in
-          union fx ff `Map.difference` singleton' n
+          union fx fss `Map.difference` singleton' n
 
-  Assignment a n _ x f
+  Assignment a n _ x
    -> singleton n a `union` fvOfExpression x
-                    `union` fvOfFragment f
+                    `union` fvOfStatements ss
 
   Return _ x
-   -> fvOfExpression x
+   -> fvOfExpression x `union` fvOfStatements ss
 
 fvOfExpression :: Ord a => Expression a -> Map Identifier (Set a)
 fvOfExpression = \case

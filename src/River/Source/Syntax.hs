@@ -8,12 +8,12 @@ import Data.Typeable (Typeable)
 
 ------------------------------------------------------------------------
 
-data Program a = Program !a !(Fragment a)
+data Program a = Program !a ![Statement a]
   deriving (Eq, Ord, Read, Show, Data, Typeable)
 
-data Fragment a =
-    Declaration !a !Identifier            !(Maybe (Expression a)) !(Fragment a)
-  | Assignment  !a !Identifier !(Maybe BinaryOp) !(Expression a)  !(Fragment a)
+data Statement a =
+    Declaration !a !Identifier            !(Maybe (Expression a))
+  | Assignment  !a !Identifier !(Maybe BinaryOp) !(Expression a)
   | Return      !a                               !(Expression a)
   deriving (Eq, Ord, Read, Show, Data, Typeable)
 
@@ -36,12 +36,12 @@ data BinaryOp = Add | Sub | Mul | Div | Mod
 ------------------------------------------------------------------------
 
 instance Functor Program where
-  fmap f (Program a ff) = Program (f a) (fmap f ff)
+  fmap f (Program a ss) = Program (f a) (fmap (fmap f) ss)
 
-instance Functor Fragment where
-  fmap f (Declaration a ii    xx ff) = Declaration (f a) ii    (fmap (fmap f) xx) (fmap f ff)
-  fmap f (Assignment  a ii op xx ff) = Assignment  (f a) ii op (fmap f xx)        (fmap f ff)
-  fmap f (Return      a       xx)    = Return      (f a)       (fmap f xx)
+instance Functor Statement where
+  fmap f (Declaration a ii    xx) = Declaration (f a) ii    (fmap (fmap f) xx)
+  fmap f (Assignment  a ii op xx) = Assignment  (f a) ii op (fmap f xx)
+  fmap f (Return      a       xx)    = Return      (f a)    (fmap f xx)
 
 instance Functor Expression where
   fmap f (Literal  a ii)       = Literal  (f a) ii

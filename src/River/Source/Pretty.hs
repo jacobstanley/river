@@ -44,27 +44,25 @@ displayProgram program = displayDecorated put doc
 
 ppProgram :: Program a -> Doc OutputAnnot
 ppProgram = \case
-  Program _ ff -> vcat [ ppKeyword "int" <+> annotate AnnDeclaration (text "main")
+  Program _ ss -> vcat [ ppKeyword "int" <+> annotate AnnDeclaration (text "main")
                                           <> text "() {"
-                       , indent 4 (ppFragment ff)
+                       , indent 4 (vcat (map ppStatement ss))
                        , text "}" ]
 
-ppFragment :: Fragment a -> Doc OutputAnnot
-ppFragment = \case
-  Declaration _ n mx ff
+ppStatement :: Statement a -> Doc OutputAnnot
+ppStatement = \case
+  Declaration _ n mx
    -> let
-          assignment = maybe empty (\x -> (empty <+> ppOperator "=" <+> ppExpression 0 x)) mx
+          assignment x = empty <+> ppOperator "=" <+> ppExpression 0 x
       in
           ppKeyword "int" <+> annotate AnnDeclaration (ppIdentifier n)
-                           <> assignment
+                           <> maybe empty assignment mx
                            <> semi
-                         <$$> ppFragment ff
 
-  Assignment _ n op x ff
+  Assignment _ n op x
    -> annotate AnnAssignment (ppIdentifier n) <+> ppAssignOp op
                                               <+> ppExpression 0 x
                                                <> semi
-                                             <$$> ppFragment ff
   Return _ x
    -> ppKeyword "return" <+> ppExpression 0 x <> semi
 

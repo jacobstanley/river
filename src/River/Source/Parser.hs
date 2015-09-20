@@ -55,31 +55,29 @@ pProgram = do
     pReserved "int"
     pReserved "main"
     parens (pure ())
-    braces (Program pos <$> pFragment)
+    braces (Program pos <$> many pStatement)
 
 ------------------------------------------------------------------------
 
-pFragment :: RiverParser (Fragment Delta)
-pFragment = (pDeclaration <?> "declaration")
-        <|> (pAssignment  <?> "assignment")
-        <|> (pReturn      <?> "return")
+pStatement :: RiverParser (Statement Delta)
+pStatement = (pDeclaration <?> "declaration")
+         <|> (pAssignment  <?> "assignment")
+         <|> (pReturn      <?> "return")
 
-pDeclaration :: RiverParser (Fragment Delta)
+pDeclaration :: RiverParser (Statement Delta)
 pDeclaration = do
     pos  <- position
     try (pReserved "int")
     name <- pIdentifier
     expr <- (pEquals *> (Just <$> pExpression)) <|> pure Nothing
     _    <- semi
-    rest <- pFragment
-    return (Declaration pos name expr rest)
+    return (Declaration pos name expr)
 
-pAssignment :: RiverParser (Fragment Delta)
+pAssignment :: RiverParser (Statement Delta)
 pAssignment = Assignment <$> position
                          <*> pIdentifier
                          <*> pAssignOp
                          <*> pExpression <* semi
-                         <*> pFragment
 
 pAssignOp :: RiverParser (Maybe BinaryOp)
 pAssignOp = pOperator "="  *> pure Nothing
@@ -89,7 +87,7 @@ pAssignOp = pOperator "="  *> pure Nothing
         <|> pOperator "/=" *> pure (Just Div)
         <|> pOperator "%=" *> pure (Just Mod)
 
-pReturn :: RiverParser (Fragment Delta)
+pReturn :: RiverParser (Statement Delta)
 pReturn = Return <$> position
                  <*> (try (pReserved "return") *> pExpression) <* semi
 
