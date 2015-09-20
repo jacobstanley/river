@@ -9,6 +9,8 @@ import           Control.Monad (MonadPlus(..))
 import           Control.Monad.Trans.Either
 
 import qualified Data.ByteString.UTF8 as UTF8
+import           Data.HashSet (HashSet)
+import qualified Data.HashSet as HashSet
 import           Data.Monoid (Monoid(..))
 import qualified Data.Text as T
 
@@ -59,17 +61,17 @@ pProgram = do
 ------------------------------------------------------------------------
 
 pStatement :: RiverParser (Statement Delta)
-pStatement = pDeclaration
-         <|> pReturn
-         <|> pAssignment
+pStatement = (pAssignment  <?> "assignment")
+         <|> (pDeclaration <?> "declaration")
+         <|> (pReturn      <?> "return")
          <?> "statement"
 
 pDeclaration :: RiverParser (Statement Delta)
 pDeclaration = do
     pos   <- position
-    pReserved "int"
+    try (pReserved "int")
     ident <- pIdentifier
-    expr  <- try (pEquals *> (Just <$> pExpression)) <|> pure Nothing
+    expr  <- (pEquals *> (Just <$> pExpression)) <|> pure Nothing
     semi
     return (Declaration pos ident expr)
 
@@ -89,7 +91,7 @@ pAssignOp = pOperator "="  *> pure Nothing
 
 pReturn :: RiverParser (Statement Delta)
 pReturn = Return <$> position
-                 <*> (pReserved "return" *> pExpression) <* semi
+                 <*> (try (pReserved "return") *> pExpression) <* semi
 
 ------------------------------------------------------------------------
 
@@ -115,14 +117,11 @@ opTable = [[prefix "-" (\p -> Unary  p Neg)],
 
 ------------------------------------------------------------------------
 
-pIdentifier :: (DeltaParsing m, TokenParsing m) => m Identifier
-pIdentifier = token . highlight H.Identifier $ do
-    x   <-       letter   <|> char '_'
-    xs  <- many (alphaNum <|> char '_')
-    return (Identifier (T.pack (x:xs)))
+pIdentifier :: (Monad m, TokenParsing m) => m Identifier
+pIdentifier = Identifier . T.pack <$> ident identStyle <?> "identifier"
 
-pReserved :: TokenParsing m => String -> m String
-pReserved name = token (highlight H.ReservedIdentifier (string name))
+pReserved :: (Monad m, TokenParsing m) => String -> m ()
+pReserved = reserve identStyle
 
 pOperator :: TokenParsing m => String -> m String
 pOperator name = token (highlight H.Operator (string name))
@@ -163,4 +162,36 @@ instance TokenParsing RiverParser where
   token p     = p <* whiteSpace
 
 commentStyle :: CommentStyle
-commentStyle = CommentStyle "/*" "*/" "//" True
+commentStyle = CommentStyle
+  { _commentStart   = "/*"
+  , _commentEnd     = "*/"
+  , _commentLine    = "//"
+  , _commentNesting = True
+  }
+
+identStyle :: CharParsing m => IdentifierStyle m
+identStyle = IdentifierStyle
+  { _styleName              = "identifier"
+  , _styleStart             = pIdentStart
+  , _styleLetter            = pIdentLetter
+  , _styleReserved          = reservedNames
+  , _styleHighlight         = H.Identifier
+  , _styleReservedHighlight = H.ReservedIdentifier
+  }
+
+reservedNames :: HashSet String
+reservedNames = HashSet.fromList
+  [ "struct", "typedef"
+  , "if", "else", "while", "for"
+  , "continue", "break", "return"
+  , "assert"
+  , "true", "false", "NULL"
+  , "alloc", "alloc_array"
+  , "int", "bool", "void", "char", "string"
+  ]
+
+pIdentStart :: CharParsing m => m Char
+pIdentStart = letter <|> char '_'
+
+pIdentLetter :: CharParsing m => m Char
+pIdentLetter = alphaNum <|> char '_'
