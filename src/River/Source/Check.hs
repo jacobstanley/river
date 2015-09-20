@@ -10,10 +10,27 @@ import           River.Source.Scope
 
 data CheckError a =
     UndeclaredVariable !Identifier !(Set a)
+  | NoReturnStatement  !a
   deriving (Eq, Ord, Read, Show)
 
 ------------------------------------------------------------------------
 
 checkProgram :: Ord a => Program a -> [CheckError a]
-checkProgram p = map (\(k,v) -> UndeclaredVariable k v)
-                     (Map.toList (fvOfProgram p))
+checkProgram p = checkReturn p
+              ++ checkVariables p
+
+------------------------------------------------------------------------
+
+checkReturn :: Program a -> [CheckError a]
+checkReturn (Program a ss)
+    | any isReturn ss = []
+    | otherwise       = [NoReturnStatement a]
+  where
+    isReturn (Return _ _) = True
+    isReturn _            = False
+
+checkVariables :: Ord a => Program a -> [CheckError a]
+checkVariables p =
+    map undecl (Map.toList (fvOfProgram p))
+  where
+    undecl (k, v) = UndeclaredVariable k v

@@ -34,25 +34,33 @@ main = do
           Left (TrifectaError xx) -> print xx
           Right program           -> do
             putStrLn (displayProgram program)
-            let errs = map snd
-                     . List.sort
+            let errs = List.sort
                      . concatMap ppCheckError
-                     $ checkProgram program
-            mapM_ T.putStrLn errs
+                     . checkProgram
+                     . fmap locationOfDelta
+                     $ program
+            mapM_ (T.putStrLn . ppError) errs
 
 ------------------------------------------------------------------------
 
-ppCheckError :: CheckError Delta -> [((FilePath, Int, Int), Text)]
-ppCheckError (UndeclaredVariable (Identifier n) ds) =
-    map go (Set.toList ds)
+data Location = Location FilePath Int Int
+  deriving (Eq, Ord, Read, Show)
+
+locationOfDelta :: Delta -> Location
+locationOfDelta d = Location (fileOfDelta d) (lineOfDelta d) (columnOfDelta d)
+
+ppError :: (Location, Text) -> Text
+ppError (loc, msg) = ppLocation loc <> ": error: " <> msg
+
+ppLocation :: Location -> Text
+ppLocation (Location file line column) =
+    T.pack file <> ":" <> T.pack (show line)
+                <> ":" <> T.pack (show column)
+
+ppCheckError :: CheckError Location -> [(Location, Text)]
+ppCheckError = \case
+    UndeclaredVariable n locs -> zip (Set.toList locs) (cycle [ppUndecl n])
+    NoReturnStatement    loc  -> [(loc, ppNoRet)]
   where
-    go d = (location d, ppSingle d)
-
-    location d = (fileOfDelta d, lineOfDelta d, columnOfDelta d)
-
-    ppSingle d = T.pack (fileOfDelta d)
-              <> ":"
-              <> T.pack (show (lineOfDelta d))
-              <> ":"
-              <> T.pack (show (columnOfDelta d))
-              <> ": error: undeclared variable '" <> n <> "'"
+    ppUndecl (Identifier n) = "undeclared variable '" <> n <> "'"
+    ppNoRet                 = "return statement not found"
