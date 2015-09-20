@@ -9,7 +9,8 @@ import           River.Source.Scope
 ------------------------------------------------------------------------
 
 data CheckError a =
-    UndeclaredVariable !Identifier !(Set a)
+    UndeclaredVariable    !Identifier !(Set a)
+  | UninitializedVariable !Identifier !(Set a)
   | NoReturnStatement  !a
   deriving (Eq, Ord, Read, Show)
 
@@ -17,7 +18,8 @@ data CheckError a =
 
 checkProgram :: Ord a => Program a -> [CheckError a]
 checkProgram p = checkReturn p
-              ++ checkVariables p
+              ++ checkDeclarations p
+              ++ checkInitialization p
 
 ------------------------------------------------------------------------
 
@@ -29,8 +31,14 @@ checkReturn (Program a ss)
     isReturn (Return _ _) = True
     isReturn _            = False
 
-checkVariables :: Ord a => Program a -> [CheckError a]
-checkVariables p =
-    map undecl (Map.toList (fvOfProgram p))
+checkDeclarations :: Ord a => Program a -> [CheckError a]
+checkDeclarations p =
+    map go (Map.toList (fvOfProgram p))
   where
-    undecl (k, v) = UndeclaredVariable k v
+    go (k, v) = UndeclaredVariable k v
+
+checkInitialization :: Ord a => Program a -> [CheckError a]
+checkInitialization p =
+    map go (Map.toList (uvOfProgram p))
+  where
+    go (k, v) = UninitializedVariable k v

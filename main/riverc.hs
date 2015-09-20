@@ -59,8 +59,10 @@ ppLocation (Location file line column) =
 
 ppCheckError :: CheckError Location -> [(Location, Text)]
 ppCheckError = \case
-    UndeclaredVariable n locs -> zip (Set.toList locs) (cycle [ppUndecl n])
-    NoReturnStatement    loc  -> [(loc, ppNoRet)]
+    UndeclaredVariable    n locs -> zip (Set.toList locs) (cycle [ppUndecl n])
+    UninitializedVariable n locs -> zip (Set.toList locs) (cycle [ppUninit n])
+    NoReturnStatement       loc  -> [(loc, ppNoRet)]
   where
     ppUndecl (Identifier n) = "undeclared variable '" <> n <> "'"
+    ppUninit (Identifier n) = "uninitialized variable '" <> n <> "'"
     ppNoRet                 = "return statement not found"

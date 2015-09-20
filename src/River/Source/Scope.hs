@@ -10,6 +10,7 @@ import qualified Data.Set as Set
 import           River.Source.Syntax
 
 ------------------------------------------------------------------------
+-- Free Variables
 
 fvOfProgram :: Ord a => Program a -> Map Identifier (Set a)
 fvOfProgram = \case
@@ -38,6 +39,43 @@ fvOfExpression = \case
   Variable a n     -> singleton n a
   Unary    _ _ x   -> fvOfExpression x
   Binary   _ _ x y -> fvOfExpression x `union` fvOfExpression y
+
+------------------------------------------------------------------------
+-- Uninitialised Variables
+
+uvOfProgram :: Ord a => Program a -> Map Identifier (Set a)
+uvOfProgram = \case
+  Program _ ss -> uvOfStatements ss
+
+uvOfStatements :: Ord a => [Statement a] -> Map Identifier (Set a)
+uvOfStatements []     = Map.empty
+uvOfStatements (s:ss) = case s of
+  Declaration _ _ Nothing
+   -> uvOfStatements ss
+
+  Declaration _ n (Just x)
+   -> let
+          ux  = uvOfExpression x
+          uss = uvOfStatements ss
+      in
+          union ux (uss `Map.difference` singleton' n)
+
+  Assignment _ n _ x
+   -> let
+          ux  = uvOfExpression x
+          uss = uvOfStatements ss
+      in
+          union ux (uss `Map.difference` singleton' n)
+
+  Return _ x
+   -> uvOfExpression x `union` uvOfStatements ss
+
+uvOfExpression :: Ord a => Expression a -> Map Identifier (Set a)
+uvOfExpression = \case
+  Literal{}        -> Map.empty
+  Variable a n     -> singleton n a
+  Unary    _ _ x   -> uvOfExpression x
+  Binary   _ _ x y -> uvOfExpression x `union` uvOfExpression y
 
 ------------------------------------------------------------------------
 
