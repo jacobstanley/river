@@ -12,10 +12,14 @@ import           Data.Text (Text)
 import qualified Data.Text as T
 import qualified Data.Text.IO as T
 
+import qualified River.Core.Pretty as Core
+
 import           River.Source.Check
 import           River.Source.Parser
-import           River.Source.Pretty
+import qualified River.Source.Pretty as Source
+import           River.Source.Reannotate
 import           River.Source.Syntax
+import           River.Source.ToCore
 
 import           System.Environment (getArgs)
 
@@ -29,17 +33,25 @@ main = do
     mapM_ go args
   where
     go arg = do
+        putStrLn arg
+        putStrLn (take (length arg) (repeat '='))
+
         p <- runEitherT (parseProgram arg)
         case p of
           Left (TrifectaError xx) -> print xx
           Right program           -> do
-            putStrLn (displayProgram program)
+            putStrLn (Source.displayProgram program)
+
             let errs = List.sort
                      . concatMap ppCheckError
                      . checkProgram
-                     . fmap locationOfDelta
+                     . reannotateProgram locationOfDelta
                      $ program
             mapM_ (T.putStrLn . ppError) errs
+
+            let core = coreOfProgram program
+            putStrLn (Core.displayProgram core)
+        putStrLn ""
 
 ------------------------------------------------------------------------
 

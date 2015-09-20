@@ -6,6 +6,7 @@ module River.Test.Parser (tests) where
 
 import River.Source.Parser
 import River.Source.Pretty
+import River.Source.Reannotate
 import River.Source.Syntax
 import River.Test.Arbitraries
 
@@ -29,7 +30,7 @@ prop_roundtrip (program :: Program X) =
     source   = show (ppProgram program)
     program' = fmap stripAnnot (parseProgramFromString "qc" source)
 
-    stripAnnot = fmap (const X)
+    stripAnnot = reannotateProgram (const X)
 
 ------------------------------------------------------------------------
 
