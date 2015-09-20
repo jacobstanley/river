@@ -1,4 +1,5 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE StandaloneDeriving #-}
 
@@ -18,10 +19,8 @@ import           Text.Parser.Expression
 import qualified Text.Parser.Token.Highlight as H
 import           Text.Parser.Token.Style
 import qualified Text.PrettyPrint.ANSI.Leijen as ANSI
-import           Text.Trifecta
-import           Text.Trifecta.Delta (Delta(..))
-import           Text.Trifecta.Parser (parseFromFile)
-import           Text.Trifecta.Result (Result(..))
+import           Text.Trifecta hiding (source)
+import           Text.Trifecta.Delta (Delta(..), column)
 
 import           River.Source.Syntax
 
@@ -56,30 +55,31 @@ pProgram = do
     pReserved "int"
     pReserved "main"
     parens (pure ())
-    braces (Program pos <$> many pStatement)
+    braces (Program pos <$> pFragment)
 
 ------------------------------------------------------------------------
 
-pStatement :: RiverParser (Statement Delta)
-pStatement = (pAssignment  <?> "assignment")
-         <|> (pDeclaration <?> "declaration")
-         <|> (pReturn      <?> "return")
-         <?> "statement"
+pFragment :: RiverParser (Fragment Delta)
+pFragment = (pDeclaration <?> "declaration")
+        <|> (pAssignment  <?> "assignment")
+        <|> (pReturn      <?> "return")
 
-pDeclaration :: RiverParser (Statement Delta)
+pDeclaration :: RiverParser (Fragment Delta)
 pDeclaration = do
-    pos   <- position
+    pos  <- position
     try (pReserved "int")
-    ident <- pIdentifier
-    expr  <- (pEquals *> (Just <$> pExpression)) <|> pure Nothing
-    semi
-    return (Declaration pos ident expr)
+    name <- pIdentifier
+    expr <- (pEquals *> (Just <$> pExpression)) <|> pure Nothing
+    _    <- semi
+    rest <- pFragment
+    return (Declaration pos name expr rest)
 
-pAssignment :: RiverParser (Statement Delta)
+pAssignment :: RiverParser (Fragment Delta)
 pAssignment = Assignment <$> position
                          <*> pIdentifier
                          <*> pAssignOp
                          <*> pExpression <* semi
+                         <*> pFragment
 
 pAssignOp :: RiverParser (Maybe BinaryOp)
 pAssignOp = pOperator "="  *> pure Nothing
@@ -89,7 +89,7 @@ pAssignOp = pOperator "="  *> pure Nothing
         <|> pOperator "/=" *> pure (Just Div)
         <|> pOperator "%=" *> pure (Just Mod)
 
-pReturn :: RiverParser (Statement Delta)
+pReturn :: RiverParser (Fragment Delta)
 pReturn = Return <$> position
                  <*> (try (pReserved "return") *> pExpression) <* semi
 
@@ -195,3 +195,18 @@ pIdentStart = letter <|> char '_'
 
 pIdentLetter :: CharParsing m => m Char
 pIdentLetter = alphaNum <|> char '_'
+
+------------------------------------------------------------------------
+-- Delta
+
+fileOfDelta :: Delta -> FilePath
+fileOfDelta (Directed fn _ _ _ _) = UTF8.toString fn
+fileOfDelta _                     = "(interactive)"
+
+lineOfDelta :: Delta -> Int
+lineOfDelta (Lines l _ _ _)      = fromIntegral l + 1
+lineOfDelta (Directed _ l _ _ _) = fromIntegral l + 1
+lineOfDelta _                    = 0
+
+columnOfDelta :: Delta -> Int
+columnOfDelta pos = fromIntegral (column pos) + 1

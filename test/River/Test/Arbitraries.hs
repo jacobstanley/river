@@ -34,7 +34,7 @@ instance Show X where
 deriveEnumerable ''X
 deriveEnumerable ''UnaryOp
 deriveEnumerable ''BinaryOp
-deriveEnumerable ''Statement
+deriveEnumerable ''Fragment
 deriveEnumerable ''Program
 
 -- Literals cannot be negative
@@ -90,21 +90,23 @@ instance (Enumerable a, Arbitrary a) => Arbitrary (Expression a) where
         , xs <- shrink x
         , ys <- shrink y ]
 
-instance (Enumerable a, Arbitrary a) => Arbitrary (Statement a) where
+instance (Enumerable a, Arbitrary a) => Arbitrary (Fragment a) where
   arbitrary = sized uniform
   shrink    = \case
-    Declaration a i x
-     -> [ Declaration as is xs
+    Declaration a i x f
+     -> [ Declaration as is xs fs
         | as <- shrink a
         , is <- shrink i
-        , xs <- shrink x ]
+        , xs <- shrink x
+        , fs <- shrink f ]
 
-    Assignment a i b x
-     -> [ Assignment as is bs xs
+    Assignment a i b x f
+     -> [ Assignment as is bs xs fs
         | as <- shrink a
         , is <- shrink i
         , bs <- shrink b
-        , xs <- shrink x ]
+        , xs <- shrink x
+        , fs <- shrink f ]
 
     Return a x
      -> [ Return as xs
