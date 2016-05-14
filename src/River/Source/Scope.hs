@@ -1,6 +1,13 @@
 {-# LANGUAGE LambdaCase #-}
+module River.Source.Scope (
+    freeOfProgram
+  , freeOfStatements
+  , freeOfExpression
 
-module River.Source.Scope where
+  , uninitializedOfProgram
+  , uninitializedOfStatements
+  , uninitializedOfExpression
+  ) where
 
 import           Data.Map (Map)
 import qualified Data.Map as Map
@@ -12,78 +19,108 @@ import           River.Source.Syntax
 ------------------------------------------------------------------------
 -- Free Variables
 
-fvOfProgram :: Ord a => Program a -> Map Identifier (Set a)
-fvOfProgram = \case
-  Program _ ss -> fvOfStatements ss
+freeOfProgram :: Ord a => Program a -> Map Identifier (Set a)
+freeOfProgram = \case
+  Program _ ss ->
+    freeOfStatements ss
 
-fvOfStatements :: Ord a => [Statement a] -> Map Identifier (Set a)
-fvOfStatements []     = Map.empty
-fvOfStatements (s:ss) = case s of
-  Declaration _ n mx
-   -> let
-          fx  = maybe Map.empty fvOfExpression mx
-          fss = fvOfStatements ss
-      in
-          union fx fss `Map.difference` singleton' n
+freeOfStatements :: Ord a => [Statement a] -> Map Identifier (Set a)
+freeOfStatements []     = Map.empty
+freeOfStatements (s:ss) = case s of
+  Declaration _ n mx ->
+    let
+      fx =
+        maybe Map.empty freeOfExpression mx
 
-  Assignment a n _ x
-   -> singleton n a `union` fvOfExpression x
-                    `union` fvOfStatements ss
+      fss =
+        freeOfStatements ss
+    in
+      union fx fss `Map.difference`
+      singleton' n
 
-  Return _ x
-   -> fvOfExpression x `union` fvOfStatements ss
+  Assignment a n _ x ->
+    singleton n a `union`
+    freeOfExpression x `union`
+    freeOfStatements ss
 
-fvOfExpression :: Ord a => Expression a -> Map Identifier (Set a)
-fvOfExpression = \case
-  Literal{}        -> Map.empty
-  Variable a n     -> singleton n a
-  Unary    _ _ x   -> fvOfExpression x
-  Binary   _ _ x y -> fvOfExpression x `union` fvOfExpression y
+  Return _ x ->
+    freeOfExpression x `union`
+    freeOfStatements ss
+
+freeOfExpression :: Ord a => Expression a -> Map Identifier (Set a)
+freeOfExpression = \case
+  Literal _ _ ->
+    Map.empty
+  Variable a n ->
+    singleton n a
+  Unary _ _ x ->
+    freeOfExpression x
+  Binary _ _ x y ->
+    freeOfExpression x `union`
+    freeOfExpression y
 
 ------------------------------------------------------------------------
--- Uninitialised Variables
+-- Uninitialized Variables
 
-uvOfProgram :: Ord a => Program a -> Map Identifier (Set a)
-uvOfProgram = \case
-  Program _ ss -> uvOfStatements ss
+uninitializedOfProgram :: Ord a => Program a -> Map Identifier (Set a)
+uninitializedOfProgram = \case
+  Program _ ss ->
+    uninitializedOfStatements ss
 
-uvOfStatements :: Ord a => [Statement a] -> Map Identifier (Set a)
-uvOfStatements []     = Map.empty
-uvOfStatements (s:ss) = case s of
-  Declaration _ _ Nothing
-   -> uvOfStatements ss
+uninitializedOfStatements :: Ord a => [Statement a] -> Map Identifier (Set a)
+uninitializedOfStatements = \case
+  [] ->
+    Map.empty
 
-  Declaration _ n (Just x)
-   -> let
-          ux  = uvOfExpression x
-          uss = uvOfStatements ss
-      in
-          union ux (uss `Map.difference` singleton' n)
+  Declaration _ _ Nothing : ss ->
+    uninitializedOfStatements ss
 
-  Assignment _ n _ x
-   -> let
-          ux  = uvOfExpression x
-          uss = uvOfStatements ss
-      in
-          union ux (uss `Map.difference` singleton' n)
+  Declaration _ n (Just x) : ss ->
+   let
+     ux =
+       uninitializedOfExpression x
 
-  Return _ x
-   -> uvOfExpression x `union` uvOfStatements ss
+     uss =
+       uninitializedOfStatements ss
+   in
+     union ux (uss `Map.difference` singleton' n)
 
-uvOfExpression :: Ord a => Expression a -> Map Identifier (Set a)
-uvOfExpression = \case
-  Literal{}        -> Map.empty
-  Variable a n     -> singleton n a
-  Unary    _ _ x   -> uvOfExpression x
-  Binary   _ _ x y -> uvOfExpression x `union` uvOfExpression y
+  Assignment _ n _ x : ss ->
+    let
+      ux =
+        uninitializedOfExpression x
+
+      uss =
+        uninitializedOfStatements ss
+    in
+      union ux (uss `Map.difference` singleton' n)
+
+  Return _ x : ss ->
+    uninitializedOfExpression x `union`
+    uninitializedOfStatements ss
+
+uninitializedOfExpression :: Ord a => Expression a -> Map Identifier (Set a)
+uninitializedOfExpression = \case
+  Literal _ _ ->
+    Map.empty
+  Variable a n ->
+    singleton n a
+  Unary _ _ x ->
+    uninitializedOfExpression x
+  Binary _ _ x y ->
+    uninitializedOfExpression x `union`
+    uninitializedOfExpression y
 
 ------------------------------------------------------------------------
 
 singleton :: k -> a -> Map k (Set a)
-singleton n a = Map.singleton n (Set.singleton a)
+singleton n a =
+  Map.singleton n (Set.singleton a)
 
 singleton' :: k -> Map k (Set a)
-singleton' n = Map.singleton n Set.empty
+singleton' n =
+  Map.singleton n Set.empty
 
 union :: (Ord k, Ord a) => Map k (Set a) -> Map k (Set a) -> Map k (Set a)
-union xs ys = Map.unionWith Set.union xs ys
+union xs ys =
+  Map.unionWith Set.union xs ys

@@ -1,4 +1,8 @@
-module River.Source.Check where
+{-# LANGUAGE LambdaCase #-}
+module River.Source.Check (
+    CheckError(..)
+  , checkProgram
+  ) where
 
 import qualified Data.Map as Map
 import           Data.Set (Set)
@@ -14,31 +18,38 @@ data CheckError a =
   | NoReturnStatement  !a
   deriving (Eq, Ord, Read, Show)
 
-------------------------------------------------------------------------
-
 checkProgram :: Ord a => Program a -> [CheckError a]
-checkProgram p = checkReturn p
-              ++ checkDeclarations p
-              ++ checkInitialization p
-
-------------------------------------------------------------------------
+checkProgram p =
+  checkReturn p ++
+  checkDeclarations p ++
+  checkInitialization p
 
 checkReturn :: Program a -> [CheckError a]
-checkReturn (Program a ss)
-    | any isReturn ss = []
-    | otherwise       = [NoReturnStatement a]
-  where
-    isReturn (Return _ _) = True
-    isReturn _            = False
+checkReturn (Program a ss) =
+  let
+    isReturn = \case
+      Return _ _ ->
+        True
+      _ ->
+        False
+  in
+    if any isReturn ss then
+      []
+    else
+      [NoReturnStatement a]
 
 checkDeclarations :: Ord a => Program a -> [CheckError a]
-checkDeclarations p =
-    map go (Map.toList (fvOfProgram p))
-  where
-    go (k, v) = UndeclaredVariable k v
+checkDeclarations =
+  let
+    go (k, v) =
+      UndeclaredVariable k v
+  in
+    map go . Map.toList . freeOfProgram
 
 checkInitialization :: Ord a => Program a -> [CheckError a]
-checkInitialization p =
-    map go (Map.toList (uvOfProgram p))
-  where
-    go (k, v) = UninitializedVariable k v
+checkInitialization =
+  let
+    go (k, v) =
+      UninitializedVariable k v
+  in
+    map go . Map.toList . uninitializedOfProgram

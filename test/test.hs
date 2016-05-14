@@ -3,7 +3,7 @@ import           Control.Monad (unless)
 import           System.Exit (exitFailure)
 import           System.IO (BufferMode(..), hSetBuffering, stdout, stderr)
 
-import qualified River.Test.Parser
+import qualified Test.River.Parser
 
 
 main :: IO ()
@@ -14,4 +14,6 @@ main = do
   unless (and results) exitFailure
 
 tests :: [IO Bool]
-tests = [ River.Test.Parser.tests ]
+tests = [
+    Test.River.Parser.tests
+  ]

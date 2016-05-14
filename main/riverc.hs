@@ -1,9 +1,7 @@
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE OverloadedStrings #-}
 
-module Main (main) where
-
-import           Control.Monad.Trans.Either (runEitherT)
+import           Control.Monad.Trans.Except (runExceptT)
 
 import           Data.Monoid ((<>))
 import qualified Data.List as List
@@ -29,52 +27,73 @@ import           Text.Trifecta.Delta (Delta)
 
 main :: IO ()
 main = do
-    args <- getArgs
-    mapM_ go args
-  where
+  let
     go arg = do
-        putStrLn arg
-        putStrLn (take (length arg) (repeat '='))
+      putStrLn arg
+      putStrLn (take (length arg) (repeat '='))
 
-        p <- runEitherT (parseProgram arg)
-        case p of
-          Left (TrifectaError xx) -> print xx
-          Right program           -> do
-            putStrLn (Source.displayProgram program)
+      p <- runExceptT (parseProgram arg)
+      case p of
+        Left (TrifectaError xx) ->
+          print xx
+        Right program -> do
+          putStrLn (Source.displayProgram program)
 
-            let errs = List.sort
-                     . concatMap ppCheckError
-                     . checkProgram
-                     . reannotateProgram locationOfDelta
-                     $ program
-            mapM_ (T.putStrLn . ppError) errs
+          let
+            errors =
+              List.sort .
+              concatMap ppCheckError .
+              checkProgram .
+              reannotateProgram locationOfDelta $
+              program
 
-            let core = coreOfProgram program
-            putStrLn (Core.displayProgram core)
-        putStrLn ""
+            core =
+              coreOfProgram program
+
+          mapM_ (T.putStrLn . ppError) errors
+
+          putStrLn (Core.displayProgram core)
+
+      putStrLn ""
+
+  args <- getArgs
+  mapM_ go args
 
 ------------------------------------------------------------------------
 
-data Location = Location FilePath Int Int
-  deriving (Eq, Ord, Read, Show)
+data Location =
+    Location FilePath Int Int
+    deriving (Eq, Ord, Read, Show)
 
 locationOfDelta :: Delta -> Location
-locationOfDelta d = Location (fileOfDelta d) (lineOfDelta d) (columnOfDelta d)
+locationOfDelta d =
+  Location (fileOfDelta d) (lineOfDelta d) (columnOfDelta d)
 
 ppError :: (Location, Text) -> Text
-ppError (loc, msg) = ppLocation loc <> ": error: " <> msg
+ppError (loc, msg) =
+  ppLocation loc <> ": error: " <> msg
 
 ppLocation :: Location -> Text
 ppLocation (Location file line column) =
-    T.pack file <> ":" <> T.pack (show line)
-                <> ":" <> T.pack (show column)
+  T.pack file <> ":" <>
+  T.pack (show line) <> ":" <>
+  T.pack (show column)
 
 ppCheckError :: CheckError Location -> [(Location, Text)]
-ppCheckError = \case
-    UndeclaredVariable    n locs -> zip (Set.toList locs) (cycle [ppUndecl n])
-    UninitializedVariable n locs -> zip (Set.toList locs) (cycle [ppUninit n])
-    NoReturnStatement       loc  -> [(loc, ppNoRet)]
-  where
-    ppUndecl (Identifier n) = "undeclared variable '" <> n <> "'"
-    ppUninit (Identifier n) = "uninitialized variable '" <> n <> "'"
-    ppNoRet                 = "return statement not found"
+ppCheckError =
+  let
+    ppUndecl (Identifier n) =
+      "undeclared variable '" <> n <> "'"
+
+    ppUninit (Identifier n) =
+      "uninitialized variable '" <> n <> "'"
+
+    ppNoRet =
+      "return statement not found"
+  in \case
+    UndeclaredVariable n locs ->
+      zip (Set.toList locs) (cycle [ppUndecl n])
+    UninitializedVariable n locs ->
+      zip (Set.toList locs) (cycle [ppUninit n])
+    NoReturnStatement loc ->
+      [(loc, ppNoRet)]
