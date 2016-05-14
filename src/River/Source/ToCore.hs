@@ -17,12 +17,12 @@ import           River.Name
 import           River.Source.Syntax
 
 
-coreOfProgram :: Program a -> Core.Program (Maybe a) (Name Text)
+coreOfProgram :: Program a -> Core.Program (Name Text) (Maybe a)
 coreOfProgram = \case
   Program a ss ->
     Core.Program (Just a) . runFresh $ coreOfStatements ss
 
-coreOfStatements :: [Statement a] -> Fresh (Core.Term (Maybe a) (Name Text))
+coreOfStatements :: [Statement a] -> Fresh (Core.Term (Name Text) (Maybe a))
 coreOfStatements = \case
   [] ->
     pure $
@@ -72,7 +72,7 @@ coreOfStatements = \case
 coreOfExpression ::
   Name Text ->
   Expression a ->
-  Fresh (Core.Term (Maybe a) (Name Text) -> Core.Term (Maybe a) (Name Text))
+  Fresh (Core.Term (Name Text) (Maybe a) -> Core.Term (Name Text) (Maybe a))
 coreOfExpression n0 = \case
   Literal a x ->
     pure $

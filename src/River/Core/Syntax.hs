@@ -1,6 +1,9 @@
 {-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE DeriveDataTypeable #-}
+{-# LANGUAGE DeriveFoldable #-}
+{-# LANGUAGE DeriveFunctor #-}
 {-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE DeriveTraversable #-}
 module River.Core.Syntax (
     Program(..)
   , Term(..)
@@ -18,25 +21,25 @@ import           Data.Typeable (Typeable)
 import           GHC.Generics (Generic)
 
 
-data Program a n =
-    Program !a !(Term a n)
-    deriving (Eq, Ord, Read, Show, Data, Typeable, Generic, NFData)
+data Program n a =
+    Program !a !(Term n a)
+    deriving (Eq, Ord, Read, Show, Functor, Foldable, Traversable, Data, Typeable, Generic, NFData)
 
-data Term a n =
-    Let !a ![n] !(Tail a n) !(Term a n)
-  | Return !a !(Tail a n)
-    deriving (Eq, Ord, Read, Show, Data, Typeable, Generic, NFData)
+data Term n a =
+    Let !a ![n] !(Tail n a) !(Term n a)
+  | Return !a !(Tail n a)
+    deriving (Eq, Ord, Read, Show, Functor, Foldable, Traversable, Data, Typeable, Generic, NFData)
 
-data Tail a n =
-    Copy !a ![Atom a n]
-  | Unary !a !UnaryOp !(Atom a n)
-  | Binary !a !BinaryOp !(Atom a n) !(Atom a n)
-    deriving (Eq, Ord, Read, Show, Data, Typeable, Generic, NFData)
+data Tail n a =
+    Copy !a ![Atom n a]
+  | Unary !a !UnaryOp !(Atom n a)
+  | Binary !a !BinaryOp !(Atom n a) !(Atom n a)
+    deriving (Eq, Ord, Read, Show, Functor, Foldable, Traversable, Data, Typeable, Generic, NFData)
 
-data Atom a n =
+data Atom n a =
     Immediate !a !Integer
   | Variable !a !n
-    deriving (Eq, Ord, Read, Show, Data, Typeable, Generic, NFData)
+    deriving (Eq, Ord, Read, Show, Functor, Foldable, Traversable, Data, Typeable, Generic, NFData)
 
 data UnaryOp =
     Neg

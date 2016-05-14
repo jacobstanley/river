@@ -15,7 +15,6 @@ import qualified River.Core.Pretty as Core
 import           River.Source.Check
 import           River.Source.Parser
 import qualified River.Source.Pretty as Source
-import           River.Source.Reannotate
 import           River.Source.Syntax
 import           River.Source.ToCore
 
@@ -30,21 +29,24 @@ main = do
   let
     go arg = do
       putStrLn arg
-      putStrLn (take (length arg) (repeat '='))
+      putStrLn $ take (length arg) (repeat '=')
 
-      p <- runExceptT (parseProgram arg)
+      p <- runExceptT $ parseProgram arg
       case p of
         Left (TrifectaError xx) ->
           print xx
         Right program -> do
-          putStrLn (Source.displayProgram program)
+          putStrLn ""
+          putStrLn "-- Source --"
+          putStrLn ""
+          putStrLn $ Source.displayProgram program
 
           let
             errors =
               List.sort .
               concatMap ppCheckError .
               checkProgram .
-              reannotateProgram locationOfDelta $
+              fmap locationOfDelta $
               program
 
             core =
@@ -52,7 +54,10 @@ main = do
 
           mapM_ (T.putStrLn . ppError) errors
 
-          putStrLn (Core.displayProgram core)
+          putStrLn ""
+          putStrLn "-- Core --"
+          putStrLn ""
+          putStrLn $ Core.displayProgram core
 
       putStrLn ""
 

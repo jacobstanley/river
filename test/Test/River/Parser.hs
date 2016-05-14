@@ -5,7 +5,6 @@ module Test.River.Parser where
 
 import River.Source.Parser
 import River.Source.Pretty
-import River.Source.Reannotate
 import River.Source.Syntax
 
 import Test.River.Arbitrary
@@ -20,7 +19,7 @@ prop_roundtrip (program :: Program X) =
       show $ ppProgram program
 
     program' =
-      fmap (reannotateProgram $ const X) $
+      fmap (fmap $ const X) $
       parseProgram' "qc" source
   in
     counterexample "\nRoundtrip:" .
@@ -42,4 +41,4 @@ return []
 tests :: IO Bool
 tests =
   $forAllProperties $
-    quickCheckWithResult stdArgs { maxSuccess = 10000 }
+    quickCheckWithResult stdArgs { maxSuccess = 1000 }

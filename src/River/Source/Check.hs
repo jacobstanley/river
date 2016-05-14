@@ -4,7 +4,7 @@ module River.Source.Check (
   , checkProgram
   ) where
 
-import qualified Data.Map as Map
+import qualified Data.Map.Strict as Map
 import           Data.Set (Set)
 
 import           River.Source.Syntax

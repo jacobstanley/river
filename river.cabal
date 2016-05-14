@@ -48,7 +48,6 @@ library
                     River.Source.Check
                     River.Source.Parser
                     River.Source.Pretty
-                    River.Source.Reannotate
                     River.Source.Scope
                     River.Source.Syntax
                     River.Source.ToCore

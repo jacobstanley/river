@@ -1,6 +1,9 @@
 {-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE DeriveDataTypeable #-}
+{-# LANGUAGE DeriveFoldable #-}
+{-# LANGUAGE DeriveFunctor #-}
 {-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE DeriveTraversable #-}
 module River.Source.Syntax (
     Program(..)
   , Statement(..)
@@ -21,20 +24,20 @@ import           GHC.Generics (Generic)
 
 data Program a =
     Program !a ![Statement a]
-    deriving (Eq, Ord, Read, Show, Data, Typeable, Generic, NFData)
+    deriving (Eq, Ord, Read, Show, Functor, Foldable, Traversable, Data, Typeable, Generic, NFData)
 
 data Statement a =
     Declaration !a !Identifier !(Maybe (Expression a))
   | Assignment !a !Identifier !(Maybe BinaryOp) !(Expression a)
   | Return !a !(Expression a)
-    deriving (Eq, Ord, Read, Show, Data, Typeable, Generic, NFData)
+    deriving (Eq, Ord, Read, Show, Functor, Foldable, Traversable, Data, Typeable, Generic, NFData)
 
 data Expression a =
     Literal !a !Integer
   | Variable !a !Identifier
   | Unary !a !UnaryOp !(Expression a)
   | Binary !a !BinaryOp !(Expression a) !(Expression a)
-    deriving (Eq, Ord, Read, Show, Data, Typeable, Generic, NFData)
+    deriving (Eq, Ord, Read, Show, Functor, Foldable, Traversable, Data, Typeable, Generic, NFData)
 
 data Identifier =
     Identifier !Text

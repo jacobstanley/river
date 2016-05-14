@@ -40,7 +40,7 @@ data OutputAnnot =
 
 ------------------------------------------------------------------------
 
-displayProgram :: Program a (Name Text) -> String
+displayProgram :: Program (Name Text) a -> String
 displayProgram program =
   let
     doc =
@@ -70,13 +70,13 @@ displayProgram program =
 
 ------------------------------------------------------------------------
 
-ppProgram :: Program a (Name Text) -> Doc OutputAnnot
+ppProgram :: Program (Name Text) a -> Doc OutputAnnot
 ppProgram = \case
   Program _ tm ->
     ppKeyword "letrec" <+> annotate AnnDefinition "main" <+> ppEquals <$$>
     indent 2 (ppTerm tm)
 
-ppTerm :: Term a (Name Text) -> Doc OutputAnnot
+ppTerm :: Term (Name Text) a -> Doc OutputAnnot
 ppTerm = \case
   Let _ ns tl tm ->
     ppCommaSep (map (annotate AnnDefinition . ppName) ns) <+> ppEquals <+> ppTail tl <$$>
@@ -84,7 +84,7 @@ ppTerm = \case
   Return _ tl ->
     ppKeyword "return" <+> ppTail tl
 
-ppTail :: Tail a (Name Text) -> Doc OutputAnnot
+ppTail :: Tail (Name Text) a -> Doc OutputAnnot
 ppTail = \case
   Copy _ [] ->
     ppUnit
@@ -95,7 +95,7 @@ ppTail = \case
   Binary _ op x y ->
     ppBinaryOp op <+> ppCommaSep [ppAtom x, ppAtom y]
 
-ppAtom :: Atom a (Name Text) -> Doc OutputAnnot
+ppAtom :: Atom (Name Text) a -> Doc OutputAnnot
 ppAtom = \case
   Immediate _ i ->
     annotate AnnImmediate (integer i)
