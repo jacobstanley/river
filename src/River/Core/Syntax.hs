@@ -4,6 +4,7 @@
 {-# LANGUAGE DeriveFunctor #-}
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE DeriveTraversable #-}
+{-# LANGUAGE TemplateHaskell #-}
 module River.Core.Syntax (
     Program(..)
   , Term(..)
@@ -17,6 +18,7 @@ import           Control.DeepSeq (NFData)
 
 import           Data.Data (Data)
 import           Data.Typeable (Typeable)
+import           Data.Bifunctor.TH (deriveBifunctor, deriveBifoldable, deriveBitraversable)
 
 import           GHC.Generics (Generic)
 
@@ -52,3 +54,16 @@ data BinaryOp =
   | Div
   | Mod
     deriving (Eq, Ord, Read, Show, Data, Typeable, Generic, NFData)
+
+$(deriveBifunctor ''Program)
+$(deriveBifoldable ''Program)
+$(deriveBitraversable ''Program)
+$(deriveBifunctor ''Term)
+$(deriveBifoldable ''Term)
+$(deriveBitraversable ''Term)
+$(deriveBifunctor ''Tail)
+$(deriveBifoldable ''Tail)
+$(deriveBitraversable ''Tail)
+$(deriveBifunctor ''Atom)
+$(deriveBifoldable ''Atom)
+$(deriveBitraversable ''Atom)

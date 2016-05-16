@@ -28,6 +28,7 @@ library
                   , annotated-wl-pprint             >= 0.7        && < 0.8
                   , ansi-terminal                   >= 0.6        && < 0.7
                   , ansi-wl-pprint                  >= 0.6        && < 0.7
+                  , bifunctors                      >= 5.0        && < 5.4
                   , containers                      >= 0.5        && < 0.6
                   , deepseq                         >= 1.4        && < 1.5
                   , optparse-applicative            >= 0.12.1     && < 1.13
@@ -39,7 +40,10 @@ library
                   , utf8-string                     >= 1.0        && < 1.1
 
   exposed-modules:
+                    River.Core.Color
+                    River.Core.Example
                     River.Core.Pretty
+                    River.Core.Scope
                     River.Core.Syntax
 
                     River.Fresh

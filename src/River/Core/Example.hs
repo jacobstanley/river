@@ -10,7 +10,6 @@ module River.Core.Example (
 
 import           Data.Text (Text)
 
-import           River.Core.Scope
 import           River.Core.Syntax
 import           River.Name
 import           River.Source.Parser

@@ -1,80 +1,56 @@
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE ScopedTypeVariables #-}
-module River.Core.Allocate where
+module River.Core.Color (
+    coloredOfProgram
+  , colorsOfProgram
+  ) where
 
+import           Control.Monad (foldM)
+
+import           Data.Bitraversable (bitraverse)
 import qualified Data.List as List
 import           Data.Map.Strict (Map)
 import qualified Data.Map.Strict as Map
-import           Data.Maybe (fromJust)
 import           Data.Set (Set)
 import qualified Data.Set as Set
-import           Data.Text (Text)
-import qualified Data.Text as T
 
-import           River.Name
 import           River.Core.Scope
 import           River.Core.Syntax
-import           River.Core.Example
-import           River.Core.Rename
-import           River.Core.Pretty
-import           River.X64.Register
 
+------------------------------------------------------------------------
 
-allocatedOfProgram :: Ord n => Program n a -> Program (Name Text) a
-allocatedOfProgram p =
+data ColorError n =
+    MissingFromInterference !n
+  | MissingFromColorMap !n
+    deriving (Eq, Ord, Show)
+
+-- | Rename variables to their optimal K-coloring.
+coloredOfProgram :: Ord n => Program n a -> Either (ColorError n) (Program Int a)
+coloredOfProgram p = do
   let
-    colors =
-      colorsOfProgram p
-
-    go n = do
-      color <- Map.lookup n colors
-      reg <- fromColor color
-      pure . Name . T.toLower . T.pack $ "%" ++ show reg
-  in
-    fromJust $
-      renameProgram go p
-
-fromColor :: Int -> Maybe General
-fromColor =
-  let
-    regs =
-      [ RAX
-      , RBX
-      , RCX
-      , RDX
-      , RBP
-      , RSP
-      , RSI
-      , RDI
-      , R8
-      , R9
-      , R10
-      , R11
-      , R12
-      , R13
-      , R14
-      , R15
-      ]
-
-    i2r =
-      Map.fromList $ List.zip [0..] regs
-  in
-    flip Map.lookup i2r
+    lookupName colors n =
+      case Map.lookup n colors of
+        Nothing ->
+          Left $ MissingFromColorMap n
+        Just x ->
+          Right x
+  colors <- colorsOfProgram p
+  bitraverse (lookupName colors) pure p
 
 -- | Find the optimal K-coloring for the variables in a program.
-colorsOfProgram :: forall n a. Ord n => Program n a -> Map n Int
+colorsOfProgram :: forall n a. Ord n => Program n a -> Either (ColorError n) (Map n Int)
 colorsOfProgram p =
   let
     interference :: Map n (Set n)
     interference =
       interferenceOfProgram p
 
-    go :: n -> Map n Int -> Map n Int
-    go n colors =
+    go :: Map n Int -> n -> Either (ColorError n) (Map n Int)
+    go colors n =
       case Map.lookup n interference of
         Nothing ->
-          colors
+          Left $ MissingFromInterference n
         Just neighbors ->
           let
             used =
@@ -84,9 +60,9 @@ colorsOfProgram p =
             lowest =
               head $ filter (not . flip Set.member used) [0..]
           in
-            Map.insert n lowest colors
+            Right $ Map.insert n lowest colors
   in
-    foldr go Map.empty $
+    foldM go Map.empty $
     simplicial interference
 
 mapIntersectionSet :: Ord k => Map k v -> Set k -> Map k v

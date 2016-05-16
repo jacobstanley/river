@@ -1,8 +1,9 @@
 {-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE DeriveDataTypeable #-}
 {-# LANGUAGE DeriveGeneric #-}
-module River.X64.Register (
-    General(..)
+module River.X64.Data (
+    Register(..)
+  , General(..)
   ) where
 
 import           Control.DeepSeq (NFData)
@@ -11,6 +12,10 @@ import           Data.Data (Data)
 import           Data.Typeable (Typeable)
 
 import           GHC.Generics (Generic)
+
+data Register =
+    Reg64 General
+    deriving (Eq, Ord, Read, Show, Data, Typeable, Generic, NFData)
 
 data General =
     RAX
