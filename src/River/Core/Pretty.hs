@@ -3,11 +3,15 @@
 module River.Core.Pretty (
     OutputAnnot(..)
   , displayProgram
+  , displayProgram'
 
   , ppProgram
   , ppTerm
   , ppTail
   , ppAtom
+
+  , ppName
+  , ppIntName
   ) where
 
 import           Data.Text (Text)
@@ -41,10 +45,14 @@ data OutputAnnot =
 ------------------------------------------------------------------------
 
 displayProgram :: Program (Name Text) a -> String
-displayProgram program =
+displayProgram =
+  displayProgram' ppName
+
+displayProgram' :: (n -> Doc OutputAnnot) -> Program n a -> String
+displayProgram' ppN program =
   let
     doc =
-      Pretty.renderPretty 0.8 80 (ppProgram program)
+      Pretty.renderPretty 0.8 80 (ppProgram ppN program)
 
     put attr str =
       sgrAttr attr ++ str ++ sgrReset
@@ -70,37 +78,37 @@ displayProgram program =
 
 ------------------------------------------------------------------------
 
-ppProgram :: Program (Name Text) a -> Doc OutputAnnot
-ppProgram = \case
+ppProgram :: (n -> Doc OutputAnnot) -> Program n a -> Doc OutputAnnot
+ppProgram ppN = \case
   Program _ tm ->
     ppKeyword "letrec" <+> annotate AnnDefinition "main" <+> ppEquals <$$>
-    indent 2 (ppTerm tm)
+    indent 2 (ppTerm ppN tm)
 
-ppTerm :: Term (Name Text) a -> Doc OutputAnnot
-ppTerm = \case
+ppTerm :: (n -> Doc OutputAnnot) -> Term n a -> Doc OutputAnnot
+ppTerm ppN = \case
   Let _ ns tl tm ->
-    ppCommaSep (map (annotate AnnDefinition . ppName) ns) <+> ppEquals <+> ppTail tl <$$>
-    ppTerm tm
+    ppCommaSep (map (annotate AnnDefinition . ppN) ns) <+> ppEquals <+> ppTail ppN tl <$$>
+    ppTerm ppN tm
   Return _ tl ->
-    ppKeyword "return" <+> ppTail tl
+    ppKeyword "return" <+> ppTail ppN tl
 
-ppTail :: Tail (Name Text) a -> Doc OutputAnnot
-ppTail = \case
+ppTail :: (n -> Doc OutputAnnot) -> Tail n a -> Doc OutputAnnot
+ppTail ppN = \case
   Copy _ [] ->
     ppUnit
   Copy _ as ->
-    ppCommaSep (map ppAtom as)
+    ppCommaSep (map (ppAtom ppN) as)
   Unary _ op x ->
-    ppUnaryOp  op <+> ppAtom x
+    ppUnaryOp  op <+> ppAtom ppN x
   Binary _ op x y ->
-    ppBinaryOp op <+> ppCommaSep [ppAtom x, ppAtom y]
+    ppBinaryOp op <+> ppCommaSep [ppAtom ppN x, ppAtom ppN y]
 
-ppAtom :: Atom (Name Text) a -> Doc OutputAnnot
-ppAtom = \case
+ppAtom :: (n -> Doc OutputAnnot) -> Atom n a -> Doc OutputAnnot
+ppAtom ppN = \case
   Immediate _ i ->
     annotate AnnImmediate (integer i)
   Variable  _ n ->
-    annotate AnnUsage (ppName n)
+    annotate AnnUsage (ppN n)
 
 ppUnaryOp :: UnaryOp -> Doc OutputAnnot
 ppUnaryOp = \case
@@ -130,6 +138,10 @@ ppName = \case
     text (T.unpack n) <> "%" <> int i
   NameNew i ->
     "%" <> int i
+
+ppIntName :: Int -> Doc OutputAnnot
+ppIntName i =
+  "%" <> int i
 
 ppCommaSep :: [Doc OutputAnnot] -> Doc OutputAnnot
 ppCommaSep =

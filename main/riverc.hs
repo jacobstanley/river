@@ -10,6 +10,7 @@ import           Data.Text (Text)
 import qualified Data.Text as T
 import qualified Data.Text.IO as T
 
+import           River.Core.Color
 import qualified River.Core.Pretty as Core
 
 import           River.Source.Check
@@ -39,7 +40,8 @@ main = do
           putStrLn ""
           putStrLn "-- Source --"
           putStrLn ""
-          putStrLn $ Source.displayProgram program
+          putStrLn $
+            Source.displayProgram program
 
           let
             errors =
@@ -52,12 +54,22 @@ main = do
             core =
               coreOfProgram program
 
+            ecolored =
+              coloredOfProgram core
+
           mapM_ (T.putStrLn . ppError) errors
 
           putStrLn ""
           putStrLn "-- Core --"
           putStrLn ""
-          putStrLn $ Core.displayProgram core
+          putStrLn $
+            Core.displayProgram core
+
+          putStrLn ""
+          putStrLn "-- Colored --"
+          putStrLn ""
+          putStrLn $
+            either show (Core.displayProgram' Core.ppIntName) ecolored
 
       putStrLn ""
 
