@@ -38,8 +38,12 @@ library
                   , trifecta                        >= 1.5        && < 1.6
                   , unordered-containers            >= 0.2        && < 0.3
                   , utf8-string                     >= 1.0        && < 1.1
+                  , void                            >= 0.7        && < 0.8
 
   exposed-modules:
+                    River.Core.Analysis.Bindings
+                    River.Core.Analysis.Interference
+                    River.Core.Analysis.Simplicial
                     River.Core.Color
                     River.Core.Example
                     River.Core.Pretty

@@ -2,8 +2,9 @@
 {-# LANGUAGE DeriveDataTypeable #-}
 {-# LANGUAGE DeriveGeneric #-}
 module River.X64.Data (
-    Register(..)
-  , General(..)
+    Instruction(..)
+  , Operand64(..)
+  , Register64(..)
   ) where
 
 import           Control.DeepSeq (NFData)
@@ -13,11 +14,19 @@ import           Data.Typeable (Typeable)
 
 import           GHC.Generics (Generic)
 
-data Register =
-    Reg64 General
+
+data Instruction =
+    Movq !Operand64 !Operand64
+  | Addq !Operand64 !Operand64
+  | Mulq !Operand64 !Operand64
     deriving (Eq, Ord, Read, Show, Data, Typeable, Generic, NFData)
 
-data General =
+data Operand64 =
+    Register64 !Register64
+  | Immediate64 !Word64
+    deriving (Eq, Ord, Read, Show, Data, Typeable, Generic, NFData)
+
+data Register64 =
     RAX
   | RBX
   | RCX

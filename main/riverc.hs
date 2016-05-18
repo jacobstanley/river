@@ -55,7 +55,7 @@ main = do
               coreOfProgram program
 
             ecolored =
-              coloredOfProgram core
+              coloredOfProgram colorByInt core
 
           mapM_ (T.putStrLn . ppError) errors
 
