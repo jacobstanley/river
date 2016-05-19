@@ -42,6 +42,7 @@ data ColorStrategy e c n a =
       unusedColor :: Binding n a -> Set c -> Either e c
     }
 
+-- | Simple coloring strategy which colors the graph using integers.
 colorByInt :: ColorStrategy Void Int n a
 colorByInt =
   ColorStrategy $ \_ used ->
