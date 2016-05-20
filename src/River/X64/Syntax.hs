@@ -1,7 +1,7 @@
 {-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE DeriveDataTypeable #-}
 {-# LANGUAGE DeriveGeneric #-}
-module River.X64.Data (
+module River.X64.Syntax (
     Instruction(..)
   , Operand64(..)
   , Register64(..)
@@ -11,6 +11,7 @@ import           Control.DeepSeq (NFData)
 
 import           Data.Data (Data)
 import           Data.Typeable (Typeable)
+import           Data.Word (Word64)
 
 import           GHC.Generics (Generic)
 
@@ -19,6 +20,7 @@ data Instruction =
     Movq !Operand64 !Operand64
   | Addq !Operand64 !Operand64
   | Mulq !Operand64 !Operand64
+  | Ret
     deriving (Eq, Ord, Read, Show, Data, Typeable, Generic, NFData)
 
 data Operand64 =

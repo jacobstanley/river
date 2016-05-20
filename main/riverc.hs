@@ -19,6 +19,10 @@ import qualified River.Source.Pretty as Source
 import           River.Source.Syntax
 import           River.Source.ToCore
 
+import           River.X64.Color
+import qualified River.X64.Pretty as X64
+import           River.X64.FromCore
+
 import           System.Environment (getArgs)
 
 import           Text.Trifecta.Delta (Delta)
@@ -55,7 +59,10 @@ main = do
               coreOfProgram program
 
             ecolored =
-              coloredOfProgram colorByInt core
+              coloredOfProgram colorByRegister core
+
+            easm =
+              assemblyOfProgram core
 
           mapM_ (T.putStrLn . ppError) errors
 
@@ -66,10 +73,16 @@ main = do
             Core.displayProgram core
 
           putStrLn ""
-          putStrLn "-- Colored --"
+          putStrLn "-- Registers Allocated --"
           putStrLn ""
           putStrLn $
-            either show (Core.displayProgram' Core.ppIntName) ecolored
+            either show (Core.displayProgram' X64.ppRegister64) ecolored
+
+          putStrLn ""
+          putStrLn "-- Assembly (x86-64) --"
+          putStrLn ""
+          putStrLn $
+            either show X64.displayProgram easm
 
       putStrLn ""
 

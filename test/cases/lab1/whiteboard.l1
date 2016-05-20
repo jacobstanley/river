@@ -1,0 +1,9 @@
+//test return ?
+
+int main() {
+    int x = 1;
+    int y = x;
+    int z = x + y;
+    int w = x + y + z;
+    return w;
+}

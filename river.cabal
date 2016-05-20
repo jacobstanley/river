@@ -60,6 +60,11 @@ library
                     River.Source.Syntax
                     River.Source.ToCore
 
+                    River.X64.Color
+                    River.X64.FromCore
+                    River.X64.Pretty
+                    River.X64.Syntax
+
 executable riverc
   ghc-options:
                     -Wall
