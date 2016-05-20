@@ -1,5 +1,6 @@
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 module River.Core.Color (
     ColorStrategy(..)
@@ -40,13 +41,22 @@ data ColorStrategy e c n a =
       -- | Given the binding and the set of colors in use by neighbors, return
       --   the color to assign to the current variable.
       unusedColor :: Binding n a -> Set c -> Either e c
+
+      -- | Given a program, find the names that are pre-colored.
+    , precolored :: Program n a -> Map n c
     }
 
 -- | Simple coloring strategy which colors the graph using integers.
 colorByInt :: ColorStrategy Void Int n a
 colorByInt =
-  ColorStrategy $ \_ used ->
-    pure . head $ filter (not . flip Set.member used) [0..]
+  ColorStrategy {
+      unusedColor =
+        \_ used ->
+          pure . head $ filter (not . flip Set.member used) [0..]
+    , precolored =
+        \_ ->
+          Map.empty
+    }
 
 -- | Rename variables to their optimal K-coloring.
 coloredOfProgram ::
@@ -80,34 +90,41 @@ colorsOfProgram strategy p =
     interference =
       interferenceOfProgram p
 
+    ordering :: [n]
+    ordering =
+      simplicial interference
+
     bindings :: Map n (Binding n a)
     bindings =
       bindingsOfProgram p
 
     go :: Map n c -> n -> Either (ColorError e n) (Map n c)
-    go colors n = do
-      ns <-
-        maybe (Left $ MissingFromInterference n) pure $
-        neighbors n interference
+    go colors n =
+      if Map.member n colors then
+        -- pre-colored node
+        pure colors
+      else do
+        ns <-
+          maybe (Left $ MissingFromInterference n) pure $
+          neighbors n interference
 
-      binding <-
-        maybe (Left $ MissingFromBindings n) pure $
-        Map.lookup n bindings
+        binding <-
+          maybe (Left $ MissingFromBindings n) pure $
+          Map.lookup n bindings
 
-      let
-        used =
-          Set.fromList . Map.elems $
-          colors `mapIntersectionSet` ns
+        let
+          used =
+            Set.fromList . Map.elems $
+            colors `mapIntersectionSet` ns
 
-      color <-
-        first StrategyError $
-        unusedColor strategy binding used
+        color <-
+          first StrategyError $
+          unusedColor strategy binding used
 
-      pure $
-        Map.insert n color colors
+        pure $
+          Map.insert n color colors
   in
-    foldM go Map.empty $
-    simplicial interference
+    foldM go (precolored strategy p) ordering
 
 mapIntersectionSet :: Ord k => Map k v -> Set k -> Map k v
 mapIntersectionSet m =

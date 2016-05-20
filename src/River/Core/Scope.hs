@@ -30,12 +30,8 @@ freeOfTail :: Ord n => Tail n a -> Set n
 freeOfTail = \case
   Copy _ xs ->
     Set.unions $ fmap freeOfAtom xs
-  Unary _ _ x ->
-    freeOfAtom x
-  Binary _ _ x y ->
-    Set.union
-      (freeOfAtom x)
-      (freeOfAtom y)
+  Prim _ _ xs ->
+    Set.unions $ fmap freeOfAtom xs
 
 freeOfAtom :: Atom n a -> Set n
 freeOfAtom = \case

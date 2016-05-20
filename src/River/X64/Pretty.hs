@@ -85,8 +85,14 @@ ppInstruction = \case
     ppInstructionName "movq" <+> ppOperand64 x <> comma <+> ppOperand64 y
   Addq x y ->
     ppInstructionName "addq" <+> ppOperand64 x <> comma <+> ppOperand64 y
+  Subq x y ->
+    ppInstructionName "subq" <+> ppOperand64 x <> comma <+> ppOperand64 y
   Mulq x y ->
     ppInstructionName "mulq" <+> ppOperand64 x <> comma <+> ppOperand64 y
+  Cqto ->
+    ppInstructionName "cqto"
+  Idivq x ->
+    ppInstructionName "idivq" <+> ppOperand64 x
   Ret ->
     ppInstructionName "ret"
 

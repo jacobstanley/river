@@ -62,11 +62,11 @@ interferenceOfProgram = \case
 interferenceOfTerm :: Ord n => Term n a -> InterferenceGraph n
 interferenceOfTerm xx =
   let
-    interference =
-      fromNeighboring (freeOfTerm xx)
+    interference ns =
+      fromNeighboring (Set.fromList ns `Set.union` freeOfTerm xx)
   in
     case xx of
-      Let _ _ _ tm ->
-        interference <> interferenceOfTerm tm
+      Let _ ns _ tm ->
+        interference ns <> interferenceOfTerm tm
       Return _ _ ->
-        interference
+        interference []

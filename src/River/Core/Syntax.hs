@@ -10,8 +10,7 @@ module River.Core.Syntax (
   , Term(..)
   , Tail(..)
   , Atom(..)
-  , UnaryOp(..)
-  , BinaryOp(..)
+  , Prim(..)
   ) where
 
 import           Control.DeepSeq (NFData)
@@ -34,8 +33,7 @@ data Term n a =
 
 data Tail n a =
     Copy !a ![Atom n a]
-  | Unary !a !UnaryOp !(Atom n a)
-  | Binary !a !BinaryOp !(Atom n a) !(Atom n a)
+  | Prim !a !Prim ![Atom n a]
     deriving (Eq, Ord, Read, Show, Functor, Foldable, Traversable, Data, Typeable, Generic, NFData)
 
 data Atom n a =
@@ -43,16 +41,12 @@ data Atom n a =
   | Variable !a !n
     deriving (Eq, Ord, Read, Show, Functor, Foldable, Traversable, Data, Typeable, Generic, NFData)
 
-data UnaryOp =
+data Prim =
     Neg
-    deriving (Eq, Ord, Read, Show, Data, Typeable, Generic, NFData)
-
-data BinaryOp =
-    Add
+  | Add
   | Sub
   | Mul
-  | Div
-  | Mod
+  | DivMod
     deriving (Eq, Ord, Read, Show, Data, Typeable, Generic, NFData)
 
 $(deriveBifunctor ''Program)

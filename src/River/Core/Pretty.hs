@@ -98,10 +98,10 @@ ppTail ppN = \case
     ppUnit
   Copy _ as ->
     ppCommaSep (map (ppAtom ppN) as)
-  Unary _ op x ->
-    ppUnaryOp  op <+> ppAtom ppN x
-  Binary _ op x y ->
-    ppBinaryOp op <+> ppCommaSep [ppAtom ppN x, ppAtom ppN y]
+  Prim _ prim [] ->
+    ppPrim prim <+> ppUnit
+  Prim _ prim as ->
+    ppPrim prim <+> ppCommaSep (map (ppAtom ppN) as)
 
 ppAtom :: (n -> Doc OutputAnnot) -> Atom n a -> Doc OutputAnnot
 ppAtom ppN = \case
@@ -110,23 +110,18 @@ ppAtom ppN = \case
   Variable  _ n ->
     annotate AnnUsage (ppN n)
 
-ppUnaryOp :: UnaryOp -> Doc OutputAnnot
-ppUnaryOp = \case
+ppPrim :: Prim -> Doc OutputAnnot
+ppPrim = \case
   Neg ->
     ppPrimitive "neg"
-
-ppBinaryOp :: BinaryOp -> Doc OutputAnnot
-ppBinaryOp = \case
   Add ->
     ppPrimitive "add"
   Sub ->
     ppPrimitive "sub"
   Mul ->
     ppPrimitive "mul"
-  Div ->
-    ppPrimitive "div"
-  Mod ->
-    ppPrimitive "mod"
+  DivMod ->
+    ppPrimitive "divmod"
 
 ------------------------------------------------------------------------
 

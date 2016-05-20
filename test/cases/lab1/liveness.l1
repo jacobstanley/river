@@ -5,6 +5,6 @@ int main() {
     int x2 = x1 + x1;
     int x3 = x2 + x1;
     int y2 = x1 + x2;
-    int y3 = y2 + x3;
+    int y3 = y2 / x3;
     return y3;
 }

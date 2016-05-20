@@ -13,8 +13,8 @@ import           River.X64.Syntax
 
 data X64Error n a =
     RegisterAllocationError !(ColorError (RegisterError n) n)
-  | InvalidTerm !(Term Register64 a)
-  | InvalidTail1 !(Tail Register64 a)
+  | CopyArityMismatch ![Operand64] !(Tail Register64 a)
+  | InvalidPrim !Prim ![Operand64] ![Operand64]
     deriving (Eq, Ord, Show)
 
 
@@ -27,33 +27,59 @@ assemblyOfProgram p0 = do
 
 assemblyOfTerm :: Term Register64 a -> Either (X64Error n a) [Instruction]
 assemblyOfTerm = \case
-  Let _ [n] tl tm ->
-    (++) <$> assemblyOfTerm1 (Register64 n) tl <*> assemblyOfTerm tm
+  Let _ ns tl tm ->
+    (++) <$> assemblyOfTail (fmap Register64 ns) tl <*> assemblyOfTerm tm
   Return _ tl ->
-    (++) <$> assemblyOfTerm1 (Register64 RAX) tl <*> pure [Ret]
-  tm ->
-    Left $ InvalidTerm tm
+    (++) <$> assemblyOfTail [Register64 RAX] tl <*> pure [Ret]
 
-assemblyOfTerm1 :: Operand64 -> Tail Register64 a -> Either (X64Error n a) [Instruction]
-assemblyOfTerm1 n = \case
-  Copy _ [x] ->
-    pure [ Movq (operandOfAtom x) n ]
-  Binary _ Add x y ->
-    let
-      xo =
-        operandOfAtom x
-      yo =
-        operandOfAtom y
-    in
-      if xo == n then
-        pure [ Addq (operandOfAtom y) (operandOfAtom x) ]
-      else if yo == n then
-        pure [ Addq (operandOfAtom x) (operandOfAtom y) ]
+assemblyOfTail ::
+  [Operand64] ->
+  Tail Register64 a ->
+  Either (X64Error n a) [Instruction]
+assemblyOfTail dsts tl =
+  case tl of
+    Copy _ xs
+      | length dsts == length xs ->
+        pure $ zipWith Movq (fmap operandOfAtom xs) dsts
+      | otherwise ->
+        Left $ CopyArityMismatch dsts tl
+    Prim _ prim xs ->
+      assemblyOfPrim prim (fmap operandOfAtom xs) dsts
+
+data Commutative =
+    Commutative
+  | NotCommutative
+    deriving (Eq)
+
+assemblyOfPrim ::
+  Prim ->
+  [Operand64] ->
+  [Operand64] ->
+  Either (X64Error n a) [Instruction]
+assemblyOfPrim prim xs dsts =
+  let
+    binary instr comm x y dst =
+      if dst == x then
+        pure [ instr y x ]
+      else if dst == y && comm == Commutative then
+        pure [ instr x y ]
       else
-        pure [ Movq (operandOfAtom y) n
-             , Addq (operandOfAtom x) n ]
-  tl ->
-    Left $ InvalidTail1 tl
+        pure [ Movq y dst
+             , instr x dst ]
+  in
+    case (prim, xs, dsts) of
+      (Add, [x, y], [dst]) ->
+        binary Addq Commutative x y dst
+      (Sub, [x, y], [dst]) ->
+        binary Subq NotCommutative x y dst
+      (Mul, [x, y], [dst]) ->
+        binary Mulq Commutative x y dst
+      (DivMod, [Register64 RAX, y], [Register64 RAX, Register64 RDX]) ->
+        pure [ Cqto
+             , Idivq y ]
+      _ ->
+        Left $ InvalidPrim prim xs dsts
+
 
 operandOfAtom :: Atom Register64 a -> Operand64
 operandOfAtom = \case
