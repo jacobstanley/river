@@ -125,10 +125,24 @@ dump path = do
       putStrLn "-- Assembly (x86-64) --"
       putStrLn ""
       putStrLn $
-        either ((++ "\n") . show) (X64.displayProgram X64.Color) easm
+        either show (X64.displayProgram X64.Color) easm
 
       putStrLn ""
       putStrLn "-- Core Eval --"
       putStrLn ""
       either (print . fmap (fmap locationOfDelta)) print $
         evaluateProgram core
+
+      putStrLn ""
+      putStrLn "-- x86-64 Eval --"
+      putStrLn ""
+      eresult <- runExceptT $ executeBinary path
+      case eresult of
+        Left _ ->
+          putStrLn "(compilation failed)"
+        Right (ExecuteResult res) ->
+          print res
+        Right err ->
+          print err
+
+      putStrLn ""

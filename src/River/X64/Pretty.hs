@@ -20,7 +20,7 @@ import           System.Console.ANSI (ConsoleLayer(..))
 import           System.Console.ANSI (SGR(..), setSGRCode)
 
 import           Text.PrettyPrint.Annotated.Leijen (Doc)
-import           Text.PrettyPrint.Annotated.Leijen ((<+>), (<$$>), (<>))
+import           Text.PrettyPrint.Annotated.Leijen ((<+>), (<>))
 import           Text.PrettyPrint.Annotated.Leijen (annotate, comma, empty)
 import           Text.PrettyPrint.Annotated.Leijen (text, integer)
 import           Text.PrettyPrint.Annotated.Leijen (vcat, indent)
@@ -82,12 +82,8 @@ displayProgram decoration instructions =
 ------------------------------------------------------------------------
 
 ppProgram :: [Instruction] -> Doc OutputAnnot
-ppProgram = \case
-  [] ->
-    empty
-  x : xs ->
-    ppInstruction x <$$>
-    ppProgram xs
+ppProgram =
+  vcat . fmap ppInstruction
 
 ppInstruction :: Instruction -> Doc OutputAnnot
 ppInstruction = \case

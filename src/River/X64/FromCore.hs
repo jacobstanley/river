@@ -71,10 +71,16 @@ assemblyOfPrim prim xs dsts =
              , instr dst ]
 
     binary instr comm x y dst =
-      if dst == x then
-        pure [ instr y dst ]
-      else if dst == y && comm == Commutative then
+      if dst == y then
         pure [ instr x dst ]
+      else if dst == x then
+        case comm of
+          Commutative ->
+            pure [ instr y dst ]
+          NotCommutative ->
+            pure [ Movq x (Register64 R11)
+                 , Movq y dst
+                 , instr (Register64 R11) dst ]
       else
         pure [ Movq y dst
              , instr x dst ]

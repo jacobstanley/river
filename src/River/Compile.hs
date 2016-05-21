@@ -2,9 +2,11 @@
 {-# LANGUAGE OverloadedStrings #-}
 module River.Compile (
     compileBinary
-
   , CompileError(..)
   , renderCompileError
+
+  , executeBinary
+  , ExecuteResult(..)
 
   -- * should be somewhere else
   , ppError
@@ -15,11 +17,13 @@ module River.Compile (
 import           Control.Monad.Trans.Except (ExceptT(..), runExceptT, throwE)
 import           Control.Monad.IO.Class (liftIO)
 
-import           Data.Monoid ((<>))
+import           Data.Int (Int64)
 import qualified Data.List as List
+import           Data.Monoid ((<>))
 import qualified Data.Set as Set
 import           Data.Text (Text)
 import qualified Data.Text as T
+import qualified Data.Text.Read as T
 
 import           River.Bifunctor.Trans
 import           River.Name
@@ -31,12 +35,18 @@ import           River.X64.FromCore
 import           River.X64.Pretty
 
 import           System.Directory (renameFile)
+import           System.Exit (ExitCode)
 import           System.FilePath ((</>))
 import           System.IO.Temp (withSystemTempDirectory)
-import           System.Process (callProcess)
+import           System.Process (callProcess, readProcessWithExitCode)
 
 import           Text.Trifecta.Delta (Delta)
 
+
+data ExecuteResult =
+    ExecuteResult !Int64
+  | ExecuteError !ExitCode !Text !Text
+    deriving (Eq, Ord, Show)
 
 data CompileError =
     ParseError !ParseError
@@ -50,13 +60,38 @@ renderCompileError = \case
     T.pack $ show err
   CheckError errs ->
     T.unlines .
-    fmap ppError . 
+    fmap ppError .
     List.sort $
     concatMap ppCheckError errs
   X64Error err ->
     T.pack $ show err
 
 ------------------------------------------------------------------------
+
+executeBinary :: FilePath -> ExceptT CompileError IO ExecuteResult
+executeBinary src = do
+  ExceptT . liftIO . withSystemTempDirectory "river" $ \tmp ->
+    runExceptT $ do
+      let
+        executable =
+          tmp </> "a.out"
+
+      compileBinary src executable
+
+      (code, out, err) <-
+        liftIO $ readProcessWithExitCode executable [] ""
+
+      let
+        tout =
+          T.pack out
+        terr =
+          T.pack err
+
+      case T.signed T.decimal tout of
+        Right (i, "\n") ->
+          pure $ ExecuteResult i
+        _ ->
+          pure $ ExecuteError code tout terr
 
 compileBinary :: FilePath -> FilePath -> ExceptT CompileError IO ()
 compileBinary src dst = do
@@ -103,11 +138,11 @@ runtime =
     [ "#include <stdio.h>"
     , "#include <stdlib.h>"
     , ""
-    , "extern int _c0_main();"
+    , "extern long long _c0_main();"
     , ""
     , "/* The main function, which calls _c0_main */"
     , "int main() {"
-    , "  printf(\"%d\\n\", _c0_main());"
+    , "  printf(\"%lld\\n\", _c0_main());"
     , "  exit(0);"
     , "}"
     ]

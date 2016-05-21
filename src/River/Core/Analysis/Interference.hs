@@ -67,6 +67,10 @@ interferenceOfTerm :: Ord n => Term n a -> InterferenceGraph n
 interferenceOfTerm xx =
   let
     interference ns =
+      --
+      -- Overly conservative:
+      --   fromNeighboring (Set.fromList ns <> freeOfTerm xx)
+      --
       mconcat $
         fromNeighboring (freeOfTerm xx) : fmap fromBinding ns
   in

@@ -5,6 +5,8 @@ module River.Core.Evaluator (
   , RuntimeError(..)
   ) where
 
+import           Control.Spoon (spoon)
+
 import           Data.Bits (shiftR)
 import           Data.Int (Int64)
 import           Data.Map (Map)
@@ -16,6 +18,7 @@ data RuntimeError n a =
     DivisionByZero !a ![n] !(Tail n a)
   | LetArityMismatch !a ![n] ![Value]
   | UnboundVariable !a !n
+  | ArithError !a !Prim ![Value]
   | DivideByZero !a !Prim ![Value]
   | InvalidPrimApp !a !Prim ![Value]
     deriving (Eq, Ord, Show, Functor)
@@ -88,11 +91,14 @@ evaluatePrim a p xs =
       Left $ DivideByZero a p xs
 
     (DivMod, [VInt64 x, VInt64 y]) ->
-      let
-        (d, m) = divMod x y
-      in
-        pure [ VInt64 d
-             , VInt64 m ]
+      case spoon $ divMod x y of
+        Nothing ->
+          -- TODO would be good to be more specific, maybe it's not so hard to
+          -- TODO detect what kind of error we'll have
+          Left $ ArithError a p xs
+        Just (d, m) ->
+          pure [ VInt64 d
+               , VInt64 m ]
 
     _ ->
       Left $ InvalidPrimApp a p xs
