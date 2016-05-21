@@ -10,18 +10,19 @@ module River.Source.ToCore (
 
 import           Data.Text (Text)
 
+import qualified River.Core.Primitive as Core
 import qualified River.Core.Syntax as Core
 import           River.Fresh
 import           River.Name
 import           River.Source.Syntax
 
 
-coreOfProgram :: Program a -> Core.Program (Name Text) (Maybe a)
+coreOfProgram :: Program a -> Core.Program Core.Prim (Name Text) (Maybe a)
 coreOfProgram = \case
   Program a ss ->
     Core.Program (Just a) . runFresh $ coreOfStatements ss
 
-coreOfStatements :: [Statement a] -> Fresh (Core.Term (Name Text) (Maybe a))
+coreOfStatements :: [Statement a] -> Fresh (Core.Term Core.Prim (Name Text) (Maybe a))
 coreOfStatements = \case
   [] ->
     pure $
@@ -71,7 +72,8 @@ coreOfStatements = \case
 coreOfExpression ::
   Name Text ->
   Expression a ->
-  Fresh (Core.Term (Name Text) (Maybe a) -> Core.Term (Name Text) (Maybe a))
+  Fresh
+    (Core.Term Core.Prim (Name Text) (Maybe a) -> Core.Term Core.Prim (Name Text) (Maybe a))
 coreOfExpression dst = \case
   Literal a x ->
     pure $
@@ -101,36 +103,32 @@ coreOfExpression dst = \case
     n2 <- freshen dst
     term_letx <- coreOfExpression n1 x
     term_lety <- coreOfExpression n2 y
-    (ns, prim) <- coreOfBinaryOp dst op
 
     let
       tail_op =
-        Core.Prim (Just a) prim
+        Core.Prim (Just a) (coreOfBinaryOp op)
           [ Core.Variable (Just a) n1
           , Core.Variable (Just a) n2 ]
 
     pure $
       term_letx .
       term_lety .
-      Core.Let (Just a) ns tail_op
+      Core.Let (Just a) [dst] tail_op
 
 coreOfUnaryOp :: UnaryOp -> Core.Prim
 coreOfUnaryOp = \case
   Neg ->
     Core.Neg
 
-coreOfBinaryOp :: Name Text -> BinaryOp -> Fresh ([Name Text], Core.Prim)
-coreOfBinaryOp dst = \case
+coreOfBinaryOp :: BinaryOp -> Core.Prim
+coreOfBinaryOp = \case
   Add ->
-    pure ([dst], Core.Add)
+    Core.Add
   Sub ->
-    pure ([dst], Core.Sub)
-  Mul -> do
-    ignore <- freshen dst
-    pure ([dst, ignore], Core.Mul)
-  Div -> do
-    ignore <- freshen dst
-    pure ([dst, ignore], Core.DivMod)
-  Mod -> do
-    ignore <- freshen dst
-    pure ([ignore, dst], Core.DivMod)
+    Core.Sub
+  Mul ->
+    Core.Mul
+  Div ->
+    Core.Div
+  Mod ->
+    Core.Mod

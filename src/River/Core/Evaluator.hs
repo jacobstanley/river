@@ -7,15 +7,15 @@ module River.Core.Evaluator (
 
 import           Control.Spoon (spoon)
 
-import           Data.Bits (shiftR)
 import           Data.Int (Int64)
 import           Data.Map (Map)
 import qualified Data.Map as Map
 
+import           River.Core.Primitive
 import           River.Core.Syntax
 
 data RuntimeError n a =
-    DivisionByZero !a ![n] !(Tail n a)
+    DivisionByZero !a ![n] !(Tail Prim n a)
   | LetArityMismatch !a ![n] ![Value]
   | UnboundVariable !a !n
   | ArithError !a !Prim ![Value]
@@ -27,12 +27,12 @@ data Value =
     VInt64 !Int64
     deriving (Eq, Ord, Show)
 
-evaluateProgram :: Ord n => Program n a -> Either (RuntimeError n a) [Value]
+evaluateProgram :: Ord n => Program Prim n a -> Either (RuntimeError n a) [Value]
 evaluateProgram = \case
   Program _ tm ->
     evaluateTerm Map.empty tm
 
-evaluateTerm :: Ord n => Map n Value -> Term n a -> Either (RuntimeError n a) [Value]
+evaluateTerm :: Ord n => Map n Value -> Term Prim n a -> Either (RuntimeError n a) [Value]
 evaluateTerm env0 = \case
   Let a ns tl tm -> do
     vs <- evaluateTail env0 tl
@@ -48,7 +48,7 @@ evaluateTerm env0 = \case
   Return _ tl ->
     evaluateTail env0 tl
 
-evaluateTail :: Ord n => Map n Value -> Tail n a -> Either (RuntimeError n a) [Value]
+evaluateTail :: Ord n => Map n Value -> Tail Prim n a -> Either (RuntimeError n a) [Value]
 evaluateTail env = \case
   Copy _ xs ->
     traverse (evaluateAtom env) xs
@@ -78,27 +78,30 @@ evaluatePrim a p xs =
     (Sub, [VInt64 x, VInt64 y]) ->
       pure [ VInt64 $ x - y ]
 
-    (Mul, [VInt64 x0, VInt64 y0]) ->
-      let
-        x = fromIntegral x0
-        y = fromIntegral y0
-        r = x * y
-      in
-        pure [ VInt64 . fromInteger $ r
-             , VInt64 . fromInteger $ r `shiftR` 64 ]
+    (Mul, [VInt64 x, VInt64 y]) ->
+      pure [ VInt64 $ x * y ]
 
-    (DivMod, [_, VInt64 0]) ->
+    (Div, [_, VInt64 0]) ->
       Left $ DivideByZero a p xs
 
-    (DivMod, [VInt64 x, VInt64 y]) ->
-      case spoon $ divMod x y of
+    (Mod, [_, VInt64 0]) ->
+      Left $ DivideByZero a p xs
+
+    (Div, [VInt64 x, VInt64 y]) ->
+      case spoon $ div x y of
         Nothing ->
           -- TODO would be good to be more specific, maybe it's not so hard to
           -- TODO detect what kind of error we'll have
           Left $ ArithError a p xs
-        Just (d, m) ->
-          pure [ VInt64 d
-               , VInt64 m ]
+        Just d ->
+          pure [ VInt64 d ]
+
+    (Mod, [VInt64 x, VInt64 y]) ->
+      case spoon $ mod x y of
+        Nothing ->
+          Left $ ArithError a p xs
+        Just m ->
+          pure [ VInt64 m ]
 
     _ ->
       Left $ InvalidPrimApp a p xs

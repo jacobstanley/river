@@ -12,12 +12,12 @@ import qualified Data.Set as Set
 import           River.Core.Syntax
 
 
-freeOfProgram :: Ord n => Program n a -> Set n
+freeOfProgram :: Ord n => Program p n a -> Set n
 freeOfProgram = \case
   Program _ tm ->
     freeOfTerm tm
 
-freeOfTerm :: Ord n => Term n a -> Set n
+freeOfTerm :: Ord n => Term p n a -> Set n
 freeOfTerm = \case
   Let _ ns tl tm ->
     Set.union
@@ -26,7 +26,7 @@ freeOfTerm = \case
   Return _ tl ->
     freeOfTail tl
 
-freeOfTail :: Ord n => Tail n a -> Set n
+freeOfTail :: Ord n => Tail p n a -> Set n
 freeOfTail = \case
   Copy _ xs ->
     Set.unions $ fmap freeOfAtom xs

@@ -36,18 +36,18 @@ data ColorError e n =
   | StrategyError !e
     deriving (Eq, Ord, Show)
 
-data ColorStrategy e c n a =
+data ColorStrategy e c p n a =
   ColorStrategy {
       -- | Given the binding and the set of colors in use by neighbors, return
       --   the color to assign to the current variable.
-      unusedColor :: Binding n a -> Set c -> Either e c
+      unusedColor :: Binding p n a -> Set c -> Either e c
 
       -- | Given a program, find the names that are pre-colored.
-    , precolored :: Program n a -> Map n c
+    , precolored :: Program p n a -> Map n c
     }
 
 -- | Simple coloring strategy which colors the graph using integers.
-colorByInt :: ColorStrategy Void Int n a
+colorByInt :: ColorStrategy Void Int p n a
 colorByInt =
   ColorStrategy {
       unusedColor =
@@ -62,9 +62,9 @@ colorByInt =
 coloredOfProgram ::
   Ord c =>
   Ord n =>
-  ColorStrategy e c n a ->
-  Program n a ->
-  Either (ColorError e n) (Program c a)
+  ColorStrategy e c p n a ->
+  Program p n a ->
+  Either (ColorError e n) (Program p c a)
 coloredOfProgram strategy p = do
   let
     lookupName colors n =
@@ -78,11 +78,11 @@ coloredOfProgram strategy p = do
 
 -- | Find the optimal K-coloring for the variables in a program.
 colorsOfProgram ::
-  forall e c n a.
+  forall e c p n a.
   Ord c =>
   Ord n =>
-  ColorStrategy e c n a ->
-  Program n a ->
+  ColorStrategy e c p n a ->
+  Program p n a ->
   Either (ColorError e n) (Map n c)
 colorsOfProgram strategy p =
   let
@@ -94,7 +94,7 @@ colorsOfProgram strategy p =
     ordering =
       simplicial interference
 
-    bindings :: Map n (Binding n a)
+    bindings :: Map n (Binding p n a)
     bindings =
       bindingsOfProgram p
 

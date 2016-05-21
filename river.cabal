@@ -55,7 +55,9 @@ library
                     River.Core.Color
                     River.Core.Evaluator
                     River.Core.Example
+                    River.Core.Fresh
                     River.Core.Pretty
+                    River.Core.Primitive
                     River.Core.Scope
                     River.Core.Syntax
 
@@ -69,9 +71,11 @@ library
                     River.Source.Syntax
                     River.Source.ToCore
 
+                    River.X64.Assimilate
                     River.X64.Color
                     River.X64.FromCore
                     River.X64.Pretty
+                    River.X64.Primitive
                     River.X64.Syntax
 
 executable riverc

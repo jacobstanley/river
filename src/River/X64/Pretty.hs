@@ -8,11 +8,14 @@ module River.X64.Pretty (
   , ppProgram
   , ppInstruction
   , ppRegister64
+
+  , ppPrim
   ) where
 
 import           Data.Char (toLower)
 import           Data.Word (Word64)
 
+import qualified River.X64.Primitive as X64
 import           River.X64.Syntax
 
 import           System.Console.ANSI (Color(..), ColorIntensity(..))
@@ -125,3 +128,18 @@ ppImmediate64 w =
 ppRegister64 :: Register64 -> Doc a
 ppRegister64 x =
   "%" <> text (fmap toLower $ show x)
+
+ppPrim :: X64.Prim -> Doc a
+ppPrim = \case
+  X64.Neg ->
+    text "neg"
+  X64.Add ->
+    text "add"
+  X64.Sub ->
+    text "sub"
+  X64.Imul ->
+    text "imul"
+  X64.Idiv ->
+    text "idiv"
+  X64.Cqto ->
+    text "cqto"

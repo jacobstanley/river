@@ -13,21 +13,21 @@ import qualified Data.Map.Strict as Map
 import           River.Core.Syntax
 
 
-data Binding n a =
+data Binding p n a =
   Binding {
       bindingPre :: ![n]
     , bindingVar :: !n
     , bindingPost :: ![n]
-    , bindingTail :: !(Tail n a)
+    , bindingTail :: !(Tail p n a)
     } deriving (Eq, Ord, Show)
 
 -- | Find the tails associated with each name in the program.
-bindingsOfProgram :: Ord n => Program n a -> Map n (Binding n a)
+bindingsOfProgram :: Ord n => Program p n a -> Map n (Binding p n a)
 bindingsOfProgram = \case
   Program _ tm ->
     bindingsOfTerm tm
 
-bindingsOfTerm :: Ord n => Term n a -> Map n (Binding n a)
+bindingsOfTerm :: Ord n => Term p n a -> Map n (Binding p n a)
 bindingsOfTerm = \case
   Let _ ns tl tm ->
     -- TODO we should probably blow up if we find duplicate names
@@ -37,7 +37,7 @@ bindingsOfTerm = \case
   Return _ _ ->
     Map.empty
 
-mkBindings :: Ord n => [n] -> [n] -> Tail n a -> Map n (Binding n a)
+mkBindings :: Ord n => [n] -> [n] -> Tail p n a -> Map n (Binding p n a)
 mkBindings pre ns tl =
   case ns of
     [] ->

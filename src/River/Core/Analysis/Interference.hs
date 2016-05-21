@@ -54,12 +54,12 @@ fromNeighboring =
     InterferenceGraph . Map.fromList . go [] . Set.toList
 
 -- | Find the interference graph of a program.
-interferenceOfProgram :: Ord n => Program n a -> InterferenceGraph n
+interferenceOfProgram :: Ord n => Program p n a -> InterferenceGraph n
 interferenceOfProgram = \case
   Program _ tm ->
     interferenceOfTerm tm
 
-interferenceOfTerm :: Ord n => Term n a -> InterferenceGraph n
+interferenceOfTerm :: Ord n => Term p n a -> InterferenceGraph n
 interferenceOfTerm xx =
   let
     termInterference =

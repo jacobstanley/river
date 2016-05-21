@@ -17,6 +17,7 @@ module River.Core.Pretty (
 import           Data.Text (Text)
 import qualified Data.Text as T
 
+import           River.Core.Primitive
 import           River.Core.Syntax
 import           River.Name
 
@@ -44,15 +45,19 @@ data OutputAnnot =
 
 ------------------------------------------------------------------------
 
-displayProgram :: Program (Name Text) a -> String
+displayProgram :: Program Prim (Name Text) a -> String
 displayProgram =
-  displayProgram' ppName
+  displayProgram' ppPrim ppName
 
-displayProgram' :: (n -> Doc OutputAnnot) -> Program n a -> String
-displayProgram' ppN program =
+displayProgram' ::
+  (p -> Doc OutputAnnot) ->
+  (n -> Doc OutputAnnot) ->
+  Program p n a ->
+  String
+displayProgram' ppP ppN program =
   let
     doc =
-      Pretty.renderPretty 0.8 80 (ppProgram ppN program)
+      Pretty.renderPretty 0.8 80 (ppProgram ppP ppN program)
 
     put attr str =
       sgrAttr attr ++ str ++ sgrReset
@@ -78,30 +83,30 @@ displayProgram' ppN program =
 
 ------------------------------------------------------------------------
 
-ppProgram :: (n -> Doc OutputAnnot) -> Program n a -> Doc OutputAnnot
-ppProgram ppN = \case
+ppProgram :: (p -> Doc OutputAnnot) -> (n -> Doc OutputAnnot) -> Program p n a -> Doc OutputAnnot
+ppProgram ppP ppN = \case
   Program _ tm ->
     ppKeyword "letrec" <+> annotate AnnDefinition "main" <+> ppEquals <$$>
-    indent 2 (ppTerm ppN tm)
+    indent 2 (ppTerm ppP ppN tm)
 
-ppTerm :: (n -> Doc OutputAnnot) -> Term n a -> Doc OutputAnnot
-ppTerm ppN = \case
+ppTerm :: (p -> Doc OutputAnnot) -> (n -> Doc OutputAnnot) -> Term p n a -> Doc OutputAnnot
+ppTerm ppP ppN = \case
   Let _ ns tl tm ->
-    ppCommaSep (map (annotate AnnDefinition . ppN) ns) <+> ppEquals <+> ppTail ppN tl <$$>
-    ppTerm ppN tm
+    ppCommaSep (map (annotate AnnDefinition . ppN) ns) <+> ppEquals <+> ppTail ppP ppN tl <$$>
+    ppTerm ppP ppN tm
   Return _ tl ->
-    ppKeyword "return" <+> ppTail ppN tl
+    ppKeyword "return" <+> ppTail ppP ppN tl
 
-ppTail :: (n -> Doc OutputAnnot) -> Tail n a -> Doc OutputAnnot
-ppTail ppN = \case
+ppTail :: (p -> Doc OutputAnnot) -> (n -> Doc OutputAnnot) -> Tail p n a -> Doc OutputAnnot
+ppTail ppP ppN = \case
   Copy _ [] ->
     ppUnit
   Copy _ as ->
     ppCommaSep (map (ppAtom ppN) as)
   Prim _ prim [] ->
-    ppPrim prim <+> ppUnit
+    annotate AnnPrimitive (ppP prim) <+> ppUnit
   Prim _ prim as ->
-    ppPrim prim <+> ppCommaSep (map (ppAtom ppN) as)
+    annotate AnnPrimitive (ppP prim) <+> ppCommaSep (map (ppAtom ppN) as)
 
 ppAtom :: (n -> Doc OutputAnnot) -> Atom n a -> Doc OutputAnnot
 ppAtom ppN = \case
@@ -110,18 +115,20 @@ ppAtom ppN = \case
   Variable  _ n ->
     annotate AnnUsage (ppN n)
 
-ppPrim :: Prim -> Doc OutputAnnot
+ppPrim :: Prim -> Doc a
 ppPrim = \case
   Neg ->
-    ppPrimitive "neg"
+    text "neg"
   Add ->
-    ppPrimitive "add"
+    text "add"
   Sub ->
-    ppPrimitive "sub"
+    text "sub"
   Mul ->
-    ppPrimitive "mul"
-  DivMod ->
-    ppPrimitive "divmod"
+    text "mul"
+  Div ->
+    text "div"
+  Mod ->
+    text "mod"
 
 ------------------------------------------------------------------------
 
@@ -149,10 +156,6 @@ ppEquals =
 ppUnit :: Doc OutputAnnot
 ppUnit =
   annotate AnnOperator (text "()")
-
-ppPrimitive :: String -> Doc OutputAnnot
-ppPrimitive =
-  annotate AnnPrimitive . text
 
 ppKeyword :: String -> Doc OutputAnnot
 ppKeyword =

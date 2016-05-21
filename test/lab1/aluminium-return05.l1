@@ -11,7 +11,7 @@ int main()
 
   a = 10;
   b = a + a + a+ a+a +a +  a;
-  c = a * a * a* a*a *a *  a;
+  c = a * a * a * a*a *a *  a;
   d = b - c -c -  c- c;
   e = c / b / a * d;
   return e;

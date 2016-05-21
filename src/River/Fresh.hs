@@ -4,9 +4,11 @@
 module River.Fresh (
     Fresh
   , runFresh
+  , runFreshFrom
 
   , FreshT
   , runFreshT
+  , runFreshFromT
 
   , nextFresh
   , freshen
@@ -37,9 +39,17 @@ runFresh :: Fresh a -> a
 runFresh =
   runIdentity . runFreshT
 
+runFreshFrom :: Int -> Fresh a -> a
+runFreshFrom n =
+  runIdentity . runFreshFromT n
+
 runFreshT :: Monad m => FreshT m a -> m a
 runFreshT =
-  flip evalStateT (FreshContext [1..]) . unFreshT
+  runFreshFromT 1
+
+runFreshFromT :: Monad m => Int -> FreshT m a -> m a
+runFreshFromT n =
+  flip evalStateT (FreshContext [n..]) . unFreshT
 
 nextFresh :: Monad m => FreshT m Int
 nextFresh =

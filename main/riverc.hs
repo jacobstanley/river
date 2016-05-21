@@ -4,6 +4,7 @@
 import           Control.Monad (unless)
 import           Control.Monad.Trans.Except (runExceptT)
 
+import           Data.Bifunctor (first)
 import qualified Data.List as List
 import qualified Data.Text as T
 import qualified Data.Text.IO as T
@@ -11,11 +12,14 @@ import qualified Data.Text.IO as T
 import           River.Compile
 import           River.Core.Color
 import           River.Core.Evaluator
+import           River.Core.Fresh
 import qualified River.Core.Pretty as Core
+import           River.Fresh
 import           River.Source.Check
 import           River.Source.Parser
 import qualified River.Source.Pretty as Source
 import           River.Source.ToCore
+import           River.X64.Assimilate
 import           River.X64.Color
 import           River.X64.FromCore
 import qualified River.X64.Pretty as X64
@@ -99,11 +103,17 @@ dump path = do
         core =
           coreOfProgram source
 
+        eassim =
+          first show .
+          runFreshFrom (nextOfProgram core) .
+          runExceptT $
+            assimilateProgram core
+
         ecolored =
-          coloredOfProgram colorByRegister core
+          first show . coloredOfProgram colorByRegister =<< eassim
 
         easm =
-          assemblyOfProgram core
+          first show $ assemblyOfProgram core
 
       unless (null errors) $ do
         putStrLn ""
@@ -116,16 +126,22 @@ dump path = do
         Core.displayProgram core
 
       putStrLn ""
+      putStrLn "-- Core (with x86-64 primitives) --"
+      putStrLn ""
+      putStrLn $
+        either id (Core.displayProgram' X64.ppPrim Core.ppName) eassim
+
+      putStrLn ""
       putStrLn "-- Registers Allocated --"
       putStrLn ""
       putStrLn $
-        either show (Core.displayProgram' X64.ppRegister64) ecolored
+        either id (Core.displayProgram' X64.ppPrim X64.ppRegister64) ecolored
 
       putStrLn ""
       putStrLn "-- Assembly (x86-64) --"
       putStrLn ""
       putStrLn $
-        either show (X64.displayProgram X64.Color) easm
+        either id (X64.displayProgram X64.Color) easm
 
       putStrLn ""
       putStrLn "-- Core Eval --"

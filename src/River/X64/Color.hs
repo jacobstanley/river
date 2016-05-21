@@ -15,14 +15,15 @@ import qualified Data.Map as Map
 import           River.Core.Analysis.Bindings
 import           River.Core.Color
 import           River.Core.Syntax
-import           River.X64.Syntax
+import           River.X64.Primitive
+import           River.X64.Syntax (Register64(..))
 
 
 data RegisterError n =
     RegistersExhausted !n
     deriving (Eq, Ord, Show)
 
-colorByRegister :: Ord n => ColorStrategy (RegisterError n) Register64 n a
+colorByRegister :: Ord n => ColorStrategy (RegisterError n) Register64 Prim n a
 colorByRegister =
   ColorStrategy {
       unusedColor =
@@ -37,28 +38,35 @@ colorByRegister =
         precoloredOfProgram
     }
 
-precoloredOfProgram :: Ord n => Program n a -> Map n Register64
+precoloredOfProgram :: Ord n => Program Prim n a -> Map n Register64
 precoloredOfProgram = \case
   Program _ tm ->
     precoloredOfTerm tm
 
-precoloredOfTerm :: Ord n => Term n a -> Map n Register64
+precoloredOfTerm :: Ord n => Term Prim n a -> Map n Register64
 precoloredOfTerm = \case
   -- TODO Should probably add extra let bindings for mul/div so that rax/rdx
   -- TODO are free for use again.
 
-  Let _ [dst0, dst1] (Prim _ Mul [Variable _ x, _]) tm ->
+  Let _ [dst0, dst1] (Prim _ Imul [Variable _ x, _]) tm ->
     Map.unions
       [ Map.singleton dst0 RAX
       , Map.singleton dst1 RDX
       , Map.singleton x RAX
       , precoloredOfTerm tm ]
 
-  Let _ [dst0, dst1] (Prim _ DivMod [Variable _ x, _]) tm ->
+  Let _ [dst0, dst1] (Prim _ Idiv [Variable _ high, Variable _ low, _]) tm ->
     Map.unions
       [ Map.singleton dst0 RAX
       , Map.singleton dst1 RDX
-      , Map.singleton x RAX
+      , Map.singleton high RDX
+      , Map.singleton low RAX
+      , precoloredOfTerm tm ]
+
+  Let _ [high] (Prim _ Cqto [Variable _ low]) tm ->
+    Map.unions
+      [ Map.singleton high RDX
+      , Map.singleton low RAX
       , precoloredOfTerm tm ]
 
   Let _ _ _ tm ->
