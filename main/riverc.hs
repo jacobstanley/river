@@ -126,3 +126,9 @@ dump path = do
       putStrLn ""
       putStrLn $
         either ((++ "\n") . show) (X64.displayProgram X64.Color) easm
+
+      putStrLn ""
+      putStrLn "-- Core Eval --"
+      putStrLn ""
+      either (print . fmap (fmap locationOfDelta)) print $
+        evaluateProgram core
