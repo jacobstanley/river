@@ -41,6 +41,10 @@ neighbors :: Ord n => n -> InterferenceGraph n -> Maybe (Set n)
 neighbors n =
   Map.lookup n . mapOfInterference
 
+fromBinding :: Ord n => n -> InterferenceGraph n
+fromBinding n =
+  InterferenceGraph $ Map.singleton n Set.empty
+
 fromNeighboring :: forall n. Ord n => Set n -> InterferenceGraph n
 fromNeighboring =
   let
@@ -63,7 +67,8 @@ interferenceOfTerm :: Ord n => Term n a -> InterferenceGraph n
 interferenceOfTerm xx =
   let
     interference ns =
-      fromNeighboring (Set.fromList ns `Set.union` freeOfTerm xx)
+      mconcat $
+        fromNeighboring (freeOfTerm xx) : fmap fromBinding ns
   in
     case xx of
       Let _ ns _ tm ->

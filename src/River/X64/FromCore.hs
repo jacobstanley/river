@@ -20,12 +20,14 @@ data X64Error n a =
   | InvalidPrim !Prim ![Operand64] ![Operand64]
     deriving (Eq, Ord, Show, Functor)
 
+------------------------------------------------------------------------
 
 assemblyOfProgram :: Ord n => Program n a -> Either (X64Error n a) [Instruction]
 assemblyOfProgram p0 = do
   p <- first RegisterAllocationError $ coloredOfProgram colorByRegister p0
   case p of
     Program _ tm ->
+      fmap coalesce $
       assemblyOfTerm tm
 
 assemblyOfTerm :: Term Register64 a -> Either (X64Error n a) [Instruction]
@@ -103,3 +105,26 @@ operandOfAtom = \case
     Immediate64 $ fromInteger x
   Variable _ x ->
     Register64 x
+
+------------------------------------------------------------------------
+
+coalesce :: [Instruction] -> [Instruction]
+coalesce =
+  let
+    go = \case
+      [] ->
+        []
+
+      Movq x y : xs
+        | x == y ->
+          go xs
+
+      Movq x0 y0 : Movq x1 y1 : xs
+        | x0 == y1
+        , y0 == x1 ->
+          go $ Movq x0 y0 : xs
+
+      x : xs ->
+        x : go xs
+  in
+    go
