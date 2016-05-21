@@ -79,20 +79,45 @@ precoloredOfTerm = \case
 registers :: Set Register64
 registers =
   Set.fromList
+
+  --
+  -- Caller saved registers
+  --
+  --   We can overwrite these at will.
+  --
     [ RAX
-    , RBX
     , RCX
     , RDX
- -- , RBP
- -- , RSP
     , RSI
     , RDI
     , R8
     , R9
     , R10
+
+ --
+ -- Spill register
+ --
+ --   We will use this to spill and restore from the stack.
+ --
  -- , R11
+ --
+
+ --
+ -- Stack pointer
+ --
+ -- , RSP
+ --
+
+ --
+ -- Callee saved registers
+ --
+ --   If we use these, they must be saved to the stack and restored before
+ --   returning.
+ --
     , R12
     , R13
     , R14
     , R15
+    , RBX
+ -- , RBP
     ]

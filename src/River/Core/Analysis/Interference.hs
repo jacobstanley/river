@@ -1,4 +1,5 @@
 {-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 module River.Core.Analysis.Interference (
@@ -17,6 +18,7 @@ import           Data.Monoid ((<>))
 import           Data.Set (Set)
 import qualified Data.Set as Set
 
+import           River.Core.Annotation
 import           River.Core.Scope
 import           River.Core.Syntax
 
@@ -60,19 +62,26 @@ interferenceOfProgram = \case
     interferenceOfTerm tm
 
 interferenceOfTerm :: Ord n => Term p n a -> InterferenceGraph n
-interferenceOfTerm xx =
+interferenceOfTerm =
+  interferenceOfAnnotTerm . annotFreeOfTerm
+
+interferenceOfAnnotTerm :: Ord n => Term p n (Free n a) -> InterferenceGraph n
+interferenceOfAnnotTerm xx =
   let
+    freeOfAnnotTerm =
+      freeVars . annotOfTerm
+
     termInterference =
-      fromNeighboring $ freeOfTerm xx
+      fromNeighboring $ freeOfAnnotTerm xx
 
     boundInterference ns tm =
       let
         -- when there are no dead bindings then:
         --
-        --   freeOfTerm tm = freeOfTerm tm <> Set.fromList ns
+        --   freeOfAnnotTerm tm = freeOfAnnotTerm tm <> Set.fromList ns
         --
         ftm =
-          freeOfTerm tm <>
+          freeOfAnnotTerm tm <>
           Set.fromList ns
       in
         fromNeighboring ftm
@@ -81,6 +90,6 @@ interferenceOfTerm xx =
       Let _ ns _ tm ->
         termInterference <>
         boundInterference ns tm <>
-        interferenceOfTerm tm
+        interferenceOfAnnotTerm tm
       Return _ _ ->
         termInterference

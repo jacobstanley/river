@@ -52,6 +52,7 @@ library
                     River.Core.Analysis.Bindings
                     River.Core.Analysis.Interference
                     River.Core.Analysis.Simplicial
+                    River.Core.Annotation
                     River.Core.Color
                     River.Core.Evaluator
                     River.Core.Example

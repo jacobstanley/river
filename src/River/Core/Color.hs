@@ -7,7 +7,8 @@ module River.Core.Color (
   , colorByInt
 
   , coloredOfProgram
-  , colorsOfProgram
+
+  , scolorsOfProgram
 
   , ColorError(..)
   ) where
@@ -25,6 +26,7 @@ import           Data.Void (Void)
 import           River.Core.Analysis.Bindings
 import           River.Core.Analysis.Interference
 import           River.Core.Analysis.Simplicial
+import           River.Core.Scope
 import           River.Core.Syntax
 
 ------------------------------------------------------------------------
@@ -73,18 +75,23 @@ coloredOfProgram strategy p = do
           Left $ MissingFromColorMap n
         Just x ->
           Right x
-  colors <- colorsOfProgram strategy p
+  colors <- scolorsOfProgram strategy p
   bitraverse (lookupName colors) pure p
 
+------------------------------------------------------------------------
+
 -- | Find the optimal K-coloring for the variables in a program.
-colorsOfProgram ::
+--
+--   Simplical elimination ordering method.
+--
+scolorsOfProgram ::
   forall e c p n a.
   Ord c =>
   Ord n =>
   ColorStrategy e c p n a ->
   Program p n a ->
   Either (ColorError e n) (Map n c)
-colorsOfProgram strategy p =
+scolorsOfProgram strategy p =
   let
     interference :: InterferenceGraph n
     interference =
