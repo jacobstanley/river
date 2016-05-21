@@ -95,14 +95,14 @@ assimilateComplexPrim ::
 assimilateComplexPrim an ns ap p xs =
   case (ns, p, xs) of
     ([dst], Core.Mul, [x, y]) -> do
-      ignore <- lift $ freshen dst
+      ignore <- lift newFresh
       pure .
         Let an [dst, ignore] $
         Prim ap X64.Imul [x, y]
 
     ([dst], Core.Div, [x, y]) -> do
-      ignore <- lift $ freshen dst
-      high_x <- lift $ newFresh
+      ignore <- lift newFresh
+      high_x <- lift newFresh
       pure $
         Let ap [high_x]
           (Prim ap X64.Cqto [x]) .
@@ -110,8 +110,8 @@ assimilateComplexPrim an ns ap p xs =
           (Prim ap X64.Idiv [x, Variable ap high_x, y])
 
     ([dst], Core.Mod, [x, y]) -> do
-      ignore <- lift $ freshen dst
-      high_x <- lift $ newFresh
+      ignore <- lift newFresh
+      high_x <- lift newFresh
       pure $
         Let ap [high_x]
           (Prim ap X64.Cqto [x]) .
