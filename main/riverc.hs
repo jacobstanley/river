@@ -10,14 +10,15 @@ import qualified Data.Text.IO as T
 
 import           River.Compile
 import           River.Core.Color
+import           River.Core.Evaluator
 import qualified River.Core.Pretty as Core
 import           River.Source.Check
 import           River.Source.Parser
 import qualified River.Source.Pretty as Source
 import           River.Source.ToCore
 import           River.X64.Color
-import qualified River.X64.Pretty as X64
 import           River.X64.FromCore
+import qualified River.X64.Pretty as X64
 
 import           System.Environment (getArgs)
 
@@ -29,6 +30,8 @@ main = do
   case args of
     ("dump" : paths) ->
       mapM_ dump paths
+    ("eval" : src : []) ->
+      eval src
     ("compile" : src : []) ->
       compile src "a.out"
     ("compile" : src : dst : []) ->
@@ -41,6 +44,8 @@ main = do
       putStrLn "Commands:"
       putStrLn ""
       putStrLn "  dump PATH [PATH] [PATH]"
+      putStrLn ""
+      putStrLn "  eval PATH"
       putStrLn ""
       putStrLn "  compile SOURCE_PATH OUTPUT_PATH"
       putStrLn ""
@@ -56,6 +61,17 @@ compile src dst = do
     Right () ->
       return ()
 
+eval :: FilePath -> IO ()
+eval path = do
+  p <- runExceptT $ parseProgram path
+  case p of
+    Left (TrifectaError xx) ->
+      print xx
+    Right source ->
+      either (print . fmap (fmap locationOfDelta)) print .
+      evaluateProgram $
+      coreOfProgram source
+
 dump :: FilePath -> IO ()
 dump path = do
   putStrLn path
@@ -65,12 +81,12 @@ dump path = do
   case p of
     Left (TrifectaError xx) ->
       print xx
-    Right program -> do
+    Right source -> do
       putStrLn ""
       putStrLn "-- Source --"
       putStrLn ""
       putStrLn $
-        Source.displayProgram program
+        Source.displayProgram source
 
       let
         errors =
@@ -78,10 +94,10 @@ dump path = do
           concatMap ppCheckError .
           checkProgram .
           fmap locationOfDelta $
-          program
+          source
 
         core =
-          coreOfProgram program
+          coreOfProgram source
 
         ecolored =
           coloredOfProgram colorByRegister core

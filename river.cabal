@@ -52,6 +52,7 @@ library
                     River.Core.Analysis.Interference
                     River.Core.Analysis.Simplicial
                     River.Core.Color
+                    River.Core.Evaluator
                     River.Core.Example
                     River.Core.Pretty
                     River.Core.Scope
