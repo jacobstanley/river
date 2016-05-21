@@ -1,0 +1,9 @@
+//test exception 
+// test division error with hex tmin
+
+int main()
+{
+    int TMIN;
+    TMIN = 0x8000000000000000;
+    return (TMIN / (0-1));
+}
