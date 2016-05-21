@@ -1,5 +1,5 @@
-//test return -168349682
-// token handle
+//test return -571399000050
+
 int main()
 {
   int a;
@@ -7,11 +7,12 @@ int main()
   int c;
   int d;
   int e;
+  int e0;
 
   a = 10;
   b = a + a + a+ a+a +a +  a;
   c = a * a * a* a*a *a *  a;
   d = b - c -c -  c- c;
-  e = c /b /a *  d;
+  e = c / b / a * d;
   return e;
 }
