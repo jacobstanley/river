@@ -103,7 +103,7 @@ dump path = do
       putStrLn "-- Registers Allocated --"
       putStrLn ""
       putStrLn $
-        either ((++ "\n") . show) (Core.displayProgram' X64.ppRegister64) ecolored
+        either show (Core.displayProgram' X64.ppRegister64) ecolored
 
       putStrLn ""
       putStrLn "-- Assembly (x86-64) --"
