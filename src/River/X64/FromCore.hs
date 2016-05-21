@@ -61,22 +61,35 @@ assemblyOfPrim ::
   Either (X64Error n a) [Instruction]
 assemblyOfPrim prim xs dsts =
   let
+    unary instr x dst =
+      if dst == x then
+        pure [ instr dst ]
+      else
+        pure [ Movq x dst
+             , instr dst ]
+
     binary instr comm x y dst =
       if dst == x then
-        pure [ instr y x ]
+        pure [ instr y dst ]
       else if dst == y && comm == Commutative then
-        pure [ instr x y ]
+        pure [ instr x dst ]
       else
         pure [ Movq y dst
              , instr x dst ]
   in
     case (prim, xs, dsts) of
+      (Neg, [x], [dst]) ->
+        unary Negq x dst
+
       (Add, [x, y], [dst]) ->
         binary Addq Commutative x y dst
+
       (Sub, [x, y], [dst]) ->
-        binary Subq NotCommutative x y dst
-      (Mul, [x, y], [dst]) ->
-        binary Mulq Commutative x y dst
+        binary Subq NotCommutative y x dst
+
+      (Mul, [Register64 RAX, y], [Register64 RAX, Register64 RDX]) ->
+        pure [ Imulq y ]
+
       (DivMod, [Register64 RAX, y], [Register64 RAX, Register64 RDX]) ->
         pure [ Cqto
              , Idivq y ]

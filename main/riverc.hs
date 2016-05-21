@@ -1,6 +1,7 @@
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE OverloadedStrings #-}
 
+import           Control.Monad (unless)
 import           Control.Monad.Trans.Except (runExceptT)
 
 import qualified Data.List as List
@@ -28,6 +29,8 @@ main = do
   case args of
     ("dump" : paths) ->
       mapM_ dump paths
+    ("compile" : src : []) ->
+      compile src "a.out"
     ("compile" : src : dst : []) ->
       compile src dst
     _ -> do
@@ -86,7 +89,9 @@ dump path = do
         easm =
           assemblyOfProgram core
 
-      mapM_ (T.putStrLn . ppError) errors
+      unless (null errors) $ do
+        putStrLn ""
+        mapM_ (T.putStrLn . ppError) errors
 
       putStrLn ""
       putStrLn "-- Core --"

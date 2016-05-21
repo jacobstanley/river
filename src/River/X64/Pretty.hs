@@ -93,12 +93,14 @@ ppInstruction :: Instruction -> Doc OutputAnnot
 ppInstruction = \case
   Movq x y ->
     ppInstructionName "movq" <+> ppOperand64 x <> comma <+> ppOperand64 y
+  Negq x ->
+    ppInstructionName "negq" <+> ppOperand64 x
   Addq x y ->
     ppInstructionName "addq" <+> ppOperand64 x <> comma <+> ppOperand64 y
   Subq x y ->
     ppInstructionName "subq" <+> ppOperand64 x <> comma <+> ppOperand64 y
-  Mulq x y ->
-    ppInstructionName "mulq" <+> ppOperand64 x <> comma <+> ppOperand64 y
+  Imulq x ->
+    ppInstructionName "imulq" <+> ppOperand64 x
   Cqto ->
     ppInstructionName "cqto"
   Idivq x ->

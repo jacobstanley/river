@@ -44,8 +44,16 @@ precoloredOfProgram = \case
 
 precoloredOfTerm :: Ord n => Term n a -> Map n Register64
 precoloredOfTerm = \case
-  -- TODO This should probably do add extra let bindings so that rax/rdx are
-  -- TODO free for use again.
+  -- TODO Should probably add extra let bindings for mul/div so that rax/rdx
+  -- TODO are free for use again.
+
+  Let _ [dst0, dst1] (Prim _ Mul [Variable _ x, _]) tm ->
+    Map.unions
+      [ Map.singleton dst0 RAX
+      , Map.singleton dst1 RDX
+      , Map.singleton x RAX
+      , precoloredOfTerm tm ]
+
   Let _ [dst0, dst1] (Prim _ DivMod [Variable _ x, _]) tm ->
     Map.unions
       [ Map.singleton dst0 RAX

@@ -18,9 +18,10 @@ import           GHC.Generics (Generic)
 
 data Instruction =
     Movq !Operand64 !Operand64
+  | Negq !Operand64
   | Addq !Operand64 !Operand64
   | Subq !Operand64 !Operand64
-  | Mulq !Operand64 !Operand64
+  | Imulq !Operand64
   | Cqto
   | Idivq !Operand64
   | Ret

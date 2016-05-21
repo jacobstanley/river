@@ -125,8 +125,9 @@ coreOfBinaryOp dst = \case
     pure ([dst], Core.Add)
   Sub ->
     pure ([dst], Core.Sub)
-  Mul ->
-    pure ([dst], Core.Mul)
+  Mul -> do
+    ignore <- freshen dst
+    pure ([dst, ignore], Core.Mul)
   Div -> do
     ignore <- freshen dst
     pure ([dst, ignore], Core.DivMod)
