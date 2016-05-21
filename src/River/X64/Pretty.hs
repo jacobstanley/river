@@ -2,6 +2,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 module River.X64.Pretty (
     OutputAnnot(..)
+  , Decoration(..)
   , displayProgram
 
   , ppProgram
@@ -35,10 +36,15 @@ data OutputAnnot =
   | AnnKeyword
     deriving (Eq, Ord, Read, Show)
 
+data Decoration =
+    Color
+  | NoColor
+    deriving (Eq, Ord, Read, Show)
+
 ------------------------------------------------------------------------
 
-displayProgram :: [Instruction] -> String
-displayProgram instructions =
+displayProgram :: Decoration -> [Instruction] -> String
+displayProgram decoration instructions =
   let
     doc =
       Pretty.renderPretty 0.8 80 $ vcat
@@ -50,7 +56,11 @@ displayProgram instructions =
         ]
 
     put attr str =
-      sgrAttr attr ++ str ++ sgrReset
+      case decoration of
+        Color ->
+          sgrAttr attr ++ str ++ sgrReset
+        NoColor ->
+          str
 
     sgrReset =
       setSGRCode [Reset]

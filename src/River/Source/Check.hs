@@ -16,7 +16,7 @@ data CheckError a =
     UndeclaredVariable    !Identifier !(Set a)
   | UninitializedVariable !Identifier !(Set a)
   | NoReturnStatement  !a
-  deriving (Eq, Ord, Read, Show)
+    deriving (Eq, Ord, Read, Show)
 
 checkProgram :: Ord a => Program a -> [CheckError a]
 checkProgram p =

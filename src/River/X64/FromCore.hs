@@ -1,6 +1,9 @@
+{-# LANGUAGE DeriveFunctor #-}
 {-# LANGUAGE LambdaCase #-}
 module River.X64.FromCore (
     assemblyOfProgram
+
+  , X64Error(..)
   ) where
 
 import           Data.Bifunctor (first)
@@ -15,7 +18,7 @@ data X64Error n a =
     RegisterAllocationError !(ColorError (RegisterError n) n)
   | CopyArityMismatch ![Operand64] !(Tail Register64 a)
   | InvalidPrim !Prim ![Operand64] ![Operand64]
-    deriving (Eq, Ord, Show)
+    deriving (Eq, Ord, Show, Functor)
 
 
 assemblyOfProgram :: Ord n => Program n a -> Either (X64Error n a) [Instruction]

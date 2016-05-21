@@ -1,6 +1,5 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE LambdaCase #-}
-
 module River.Source.ToCore (
     coreOfProgram
   , coreOfStatements

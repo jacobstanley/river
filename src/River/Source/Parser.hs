@@ -46,7 +46,7 @@ import           River.Source.Syntax
 
 data ParseError =
     TrifectaError ANSI.Doc
-  deriving (Show)
+    deriving (Show)
 
 parseProgram :: FilePath -> ExceptT ParseError IO (Program Delta)
 parseProgram path =
