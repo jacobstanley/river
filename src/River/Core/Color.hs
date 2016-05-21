@@ -9,6 +9,7 @@ module River.Core.Color (
   , coloredOfProgram
 
   , scolorsOfProgram
+  , colorsOfProgram
 
   , ColorError(..)
   ) where
@@ -23,9 +24,8 @@ import           Data.Set (Set)
 import qualified Data.Set as Set
 import           Data.Void (Void)
 
-import           River.Core.Analysis.Bindings
 import           River.Core.Analysis.Interference
-import           River.Core.Analysis.Simplicial
+import           River.Core.Annotation
 import           River.Core.Scope
 import           River.Core.Syntax
 
@@ -42,7 +42,7 @@ data ColorStrategy e c p n a =
   ColorStrategy {
       -- | Given the binding and the set of colors in use by neighbors, return
       --   the color to assign to the current variable.
-      unusedColor :: Binding p n a -> Set c -> Either e c
+      unusedColor :: n -> Set c -> Either e c
 
       -- | Given a program, find the names that are pre-colored.
     , precolored :: Program p n a -> Map n c
@@ -99,11 +99,8 @@ scolorsOfProgram strategy p =
 
     ordering :: [n]
     ordering =
-      simplicial interference
-
-    bindings :: Map n (Binding p n a)
-    bindings =
-      bindingsOfProgram p
+      -- simplicial interference
+      orderingOfProgram p
 
     go :: Map n c -> n -> Either (ColorError e n) (Map n c)
     go colors n =
@@ -115,10 +112,6 @@ scolorsOfProgram strategy p =
           maybe (Left $ MissingFromInterference n) pure $
           neighbors n interference
 
-        binding <-
-          maybe (Left $ MissingFromBindings n) pure $
-          Map.lookup n bindings
-
         let
           used =
             Set.fromList . Map.elems $
@@ -126,12 +119,95 @@ scolorsOfProgram strategy p =
 
         color <-
           first StrategyError $
-          unusedColor strategy binding used
+          unusedColor strategy n used
 
         pure $
           Map.insert n color colors
   in
     foldM go (precolored strategy p) ordering
+
+------------------------------------------------------------------------
+
+-- | Alternative to River.Core.Analysis.Simplicial.
+--
+--   If I've understood [1] correctly, this should create a simplicial ordering
+--   also. My assumption is that a pre-order traversal of an SSA dominator tree
+--   is equivalent to a pre-order traversal of a program in ANF.
+--
+--   1. Sebastian Hack. Register Allocation for Programs in SSA Form, 2007
+--
+orderingOfProgram :: Program p n a -> [n]
+orderingOfProgram = \case
+  Program _ tm ->
+    orderingOfTerm tm
+
+orderingOfTerm :: Term p n a -> [n]
+orderingOfTerm = \case
+  Let _ ns _ tm ->
+    ns ++ orderingOfTerm tm
+  Return _ _ ->
+    []
+
+------------------------------------------------------------------------
+
+-- | Find the optimal K-coloring for the variables in a program.
+--
+--   Post-order traversal method.
+--
+--   This doesn't seem to work when we need precolored nodes.
+--
+colorsOfProgram ::
+  Ord c =>
+  Ord n =>
+  ColorStrategy e c p n a ->
+  Program p n a ->
+  Either (ColorError e n) (Map n c)
+colorsOfProgram strategy p =
+  case p of
+    Program _ tm ->
+      colorsOfTerm strategy (precolored strategy p) (annotFreeOfTerm tm)
+
+colorsOfTerm ::
+  forall e c p n a.
+  Ord c =>
+  Ord n =>
+  ColorStrategy e c p n a ->
+  Map n c ->
+  Term p n (Free n a) ->
+  Either (ColorError e n) (Map n c)
+colorsOfTerm strategy colored0 = \case
+  Let (Free _ _) ns0 _ tm -> do
+    let
+      bound =
+        Set.fromList ns0
+
+      needColor =
+        Set.toList $
+        bound `Set.difference` Map.keysSet colored0
+
+      free_tm =
+        freeVars $ annotOfTerm tm
+
+      required =
+        bound `Set.union` free_tm
+
+      go :: Map n c -> n -> Either (ColorError e n) (Map n c)
+      go colors n = do
+        let
+          used =
+            Set.fromList . Map.elems $
+            colors `mapIntersectionSet` required
+
+        color <- first StrategyError $ unusedColor strategy n used
+        pure $ Map.insert n color colors
+
+    colored <- foldM go colored0 needColor
+    colorsOfTerm strategy colored tm
+
+  Return _ _ ->
+    pure colored0
+
+------------------------------------------------------------------------
 
 mapIntersectionSet :: Ord k => Map k v -> Set k -> Map k v
 mapIntersectionSet m =

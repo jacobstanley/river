@@ -7,12 +7,12 @@ module River.X64.Color (
   , RegisterError(..)
   ) where
 
-import           Data.Set (Set)
-import qualified Data.Set as Set
+import           Data.Function (on)
+import qualified Data.List as List
 import           Data.Map (Map)
 import qualified Data.Map as Map
+import           Data.Set (Set)
 
-import           River.Core.Analysis.Bindings
 import           River.Core.Color
 import           River.Core.Syntax
 import           River.X64.Primitive
@@ -27,16 +27,20 @@ colorByRegister :: Ord n => ColorStrategy (RegisterError n) Register64 Prim n a
 colorByRegister =
   ColorStrategy {
       unusedColor =
-        \(Binding _ n _ _) used ->
-          case Set.minView (registers `Set.difference` used) of
-            Nothing ->
+        \n used ->
+          case Map.toList (registers `mapDifferenceSet` used) of
+            [] ->
               Left $ RegistersExhausted n
-            Just (reg, _) ->
-              pure reg
+            regs ->
+              pure . fst $ List.minimumBy (compare `on` snd) regs
 
     , precolored =
         precoloredOfProgram
     }
+
+mapDifferenceSet :: Ord k => Map k v -> Set k -> Map k v
+mapDifferenceSet m =
+  Map.difference m . Map.fromSet (const ())
 
 precoloredOfProgram :: Ord n => Program Prim n a -> Map n Register64
 precoloredOfProgram = \case
@@ -76,9 +80,9 @@ precoloredOfTerm = \case
   Return _ _ ->
     Map.empty
 
-registers :: Set Register64
+registers :: Map Register64 Int
 registers =
-  Set.fromList
+  Map.fromList $ flip zip [1..]
 
   --
   -- Caller saved registers
