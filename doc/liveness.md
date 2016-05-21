@@ -48,3 +48,24 @@ gcd (x1, x2) =
       x2 <- r         -- x1, r
       jump gcd.       -- x1, x2
 ```
+
+# SSA
+
+```
+x1_a <- ??
+x2_a <- ??              -- x1_a
+goto gcd                -- x1_a, x2_a
+
+gcd:
+  x1 <- phi(x1_a, x1_b) -- x1_a, x1_b, x2_a, x2_b
+  x2 <- phi(x2_a, x2_b) -- x1, x2_a, x2_b
+  if (x2 = 0)           -- x1, x2
+    return x1           -- x1
+  else
+    q    <- x1 / x2     -- x1, x2
+    t    <- q * x2      -- x1, x2, q
+    r    <- x1 - t      -- x1, x2, t
+    x1_b <- x2          -- x2, r
+    x2_b <- r           -- x1_b, r
+    goto gcd            -- x1_b, x2_b
+```
