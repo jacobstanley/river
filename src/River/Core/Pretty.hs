@@ -4,6 +4,7 @@ module River.Core.Pretty (
     OutputAnnot(..)
   , displayProgram
   , displayProgram'
+  , displayDoc
 
   , ppProgram
   , ppTerm
@@ -12,6 +13,8 @@ module River.Core.Pretty (
 
   , ppName
   , ppIntName
+  , ppColor
+  , ppColor'
   ) where
 
 import           Data.Text (Text)
@@ -41,6 +44,7 @@ data OutputAnnot =
   | AnnDefinition
   | AnnOperator
   | AnnKeyword
+  | AnnColor
     deriving (Eq, Ord, Read, Show)
 
 ------------------------------------------------------------------------
@@ -55,10 +59,12 @@ displayProgram' ::
   Program p n a ->
   String
 displayProgram' ppP ppN program =
-  let
-    doc =
-      Pretty.renderPretty 0.8 80 (ppProgram ppP ppN program)
+  displayDoc $
+    ppProgram ppP ppN program
 
+displayDoc :: Doc OutputAnnot -> String
+displayDoc =
+  let
     put attr str =
       sgrAttr attr ++ str ++ sgrReset
 
@@ -78,8 +84,11 @@ displayProgram' ppP ppN program =
         setSGRCode [SetColor Foreground Dull Yellow]
       AnnKeyword ->
         setSGRCode [SetColor Foreground Dull Blue]
+      AnnColor ->
+        setSGRCode [SetColor Foreground Dull White]
   in
-    Pretty.displayDecorated put doc
+    Pretty.displayDecorated put .
+    Pretty.renderPretty 0.8 80
 
 ------------------------------------------------------------------------
 
@@ -140,6 +149,26 @@ ppName = \case
     text (T.unpack n) <> "%" <> int i
   NameNew i ->
     "%" <> int i
+
+ppColor ::
+  (n -> Doc OutputAnnot) ->
+  (c -> Doc OutputAnnot) ->
+  (n, Maybe c) ->
+  Doc OutputAnnot
+ppColor ppN ppC =
+ ppColor' " " ppN ppC
+
+ppColor' ::
+  Doc OutputAnnot ->
+  (n -> Doc OutputAnnot) ->
+  (c -> Doc OutputAnnot) ->
+  (n, Maybe c) ->
+  Doc OutputAnnot
+ppColor' sep ppN ppC = \case
+  (n, Nothing) ->
+    ppN n
+  (n, Just c) ->
+    ppN n <> annotate AnnOperator sep <> annotate AnnColor (ppC c)
 
 ppIntName :: Int -> Doc OutputAnnot
 ppIntName i =

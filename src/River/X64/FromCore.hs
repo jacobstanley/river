@@ -44,7 +44,8 @@ assemblyOfProgram p0 = do
   case p of
     Program _ tm ->
       fmap coalesce $
-      assemblyOfTerm tm
+      assemblyOfTerm $
+      first snd tm
 
 assemblyOfTerm :: Term X64.Prim Register64 a -> Either (X64Error n a) [Instruction]
 assemblyOfTerm = \case

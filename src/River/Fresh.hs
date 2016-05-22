@@ -10,9 +10,8 @@ module River.Fresh (
   , runFreshT
   , runFreshFromT
 
+  , FreshName(..)
   , nextFresh
-  , freshen
-  , newFresh
   ) where
 
 import           Control.Monad.Trans.State (StateT, evalStateT, get, put)
@@ -58,15 +57,27 @@ nextFresh =
     put $ FreshContext xs
     pure x
 
-freshen :: Monad m => Name n -> FreshT m (Name n)
-freshen = \case
-  Name n ->
-    NameMod n <$> nextFresh
-  NameMod n _ ->
-    NameMod n <$> nextFresh
-  NameNew _ ->
-    newFresh
+class FreshName n where
+  nextName :: n -> Int
+  freshen :: Monad m => n -> FreshT m n
+  newFresh :: Monad m => FreshT m n
 
-newFresh :: Monad m => FreshT m (Name n)
-newFresh =
-  NameNew <$> nextFresh
+instance FreshName (Name n) where
+  nextName = \case
+    Name _ ->
+      1
+    NameMod _ n ->
+      n + 1
+    NameNew n ->
+      n + 1
+
+  freshen = \case
+    Name n ->
+      NameMod n <$> nextFresh
+    NameMod n _ ->
+      NameMod n <$> nextFresh
+    NameNew _ ->
+      newFresh
+
+  newFresh =
+    NameNew <$> nextFresh

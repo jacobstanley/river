@@ -110,11 +110,17 @@ dump path = do
           runExceptT $
             assimilateProgram core
 
+        eprecolored =
+          first show $ fmap (precoloredOfProgram colorByRegister) eassim
+
         ecolored =
           first show . coloredOfProgram colorByRegister =<< eassim
 
         easm =
           first show $ assemblyOfProgram core
+
+        fromE e f =
+          either id f e
 
       unless (null errors) $ do
         putStrLn ""
@@ -129,26 +135,35 @@ dump path = do
       putStrLn ""
       putStrLn "-- Core (with x86-64 primitives) --"
       putStrLn ""
-      putStrLn $
-        either id (Core.displayProgram' X64.ppPrim Core.ppName) eassim
+      putStrLn . fromE eassim $
+        Core.displayProgram' X64.ppPrim Core.ppName
+
+      putStrLn ""
+      putStrLn "-- Core (after precoloring) --"
+      putStrLn ""
+      putStrLn . fromE eprecolored $
+        Core.displayProgram' X64.ppPrim (Core.ppColor Core.ppName X64.ppRegister64)
 
       putStrLn ""
       putStrLn "-- Interference Graph --"
       putStrLn ""
-      putStrLn $
-        either id (ppInterferenceGraph (show . Core.ppName) . interferenceOfProgram) eassim
+      putStrLn . fromE eprecolored $
+        ppInterferenceGraph (show . Core.ppName) .
+        interferenceOfProgram .
+        first fst
 
       putStrLn ""
       putStrLn "-- Registers Allocated --"
       putStrLn ""
-      putStrLn $
-        either id (Core.displayProgram' X64.ppPrim X64.ppRegister64) ecolored
+      putStrLn . fromE ecolored $
+        Core.displayProgram' X64.ppPrim X64.ppRegister64 .
+        first snd
 
       putStrLn ""
       putStrLn "-- Assembly (x86-64) --"
       putStrLn ""
-      putStrLn $
-        either id (X64.displayProgram X64.Color) easm
+      putStrLn . fromE easm $
+        X64.displayProgram X64.Color
 
       putStrLn ""
       putStrLn "-- Core Eval --"

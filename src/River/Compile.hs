@@ -6,6 +6,7 @@ module River.Compile (
   , renderCompileError
 
   , executeBinary
+  , executeBinary'
   , ExecuteResult(..)
 
   -- * should be somewhere else
@@ -69,14 +70,22 @@ renderCompileError = \case
 ------------------------------------------------------------------------
 
 executeBinary :: FilePath -> ExceptT CompileError IO ExecuteResult
-executeBinary src = do
+executeBinary src =
+  executeBinaryE (Right src)
+
+executeBinary' :: String -> ExceptT CompileError IO ExecuteResult
+executeBinary' src =
+  executeBinaryE (Left src)
+
+executeBinaryE :: Either String FilePath -> ExceptT CompileError IO ExecuteResult
+executeBinaryE src = do
   ExceptT . liftIO . withSystemTempDirectory "river" $ \tmp ->
     runExceptT $ do
       let
         executable =
           tmp </> "a.out"
 
-      compileBinary src executable
+      compileBinaryE src executable
 
       (code, out, err) <-
         liftIO $ readProcessWithExitCode executable [] ""
@@ -94,8 +103,12 @@ executeBinary src = do
           pure $ ExecuteError code tout terr
 
 compileBinary :: FilePath -> FilePath -> ExceptT CompileError IO ()
-compileBinary src dst = do
-  program <- firstT ParseError $ parseProgram src
+compileBinary src dst =
+  compileBinaryE (Right src) dst
+
+compileBinaryE :: Either String FilePath -> FilePath -> ExceptT CompileError IO ()
+compileBinaryE esrc dst = do
+  program <- firstT ParseError $ either (liftE . parseProgram' "program.c") parseProgram esrc
   checkProgram' program
 
   asm <-

@@ -2,6 +2,7 @@
 {-# LANGUAGE LambdaCase #-}
 module River.Core.Evaluator (
     evaluateProgram
+  , Value(..)
   , RuntimeError(..)
   ) where
 
@@ -88,7 +89,7 @@ evaluatePrim a p xs =
       Left $ DivideByZero a p xs
 
     (Div, [VInt64 x, VInt64 y]) ->
-      case spoon $ div x y of
+      case spoon $ quot x y of
         Nothing ->
           -- TODO would be good to be more specific, maybe it's not so hard to
           -- TODO detect what kind of error we'll have
@@ -97,7 +98,7 @@ evaluatePrim a p xs =
           pure [ VInt64 d ]
 
     (Mod, [VInt64 x, VInt64 y]) ->
-      case spoon $ mod x y of
+      case spoon $ rem x y of
         Nothing ->
           Left $ ArithError a p xs
         Just m ->

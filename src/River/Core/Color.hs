@@ -7,9 +7,10 @@ module River.Core.Color (
   , colorByInt
 
   , coloredOfProgram
+  , precoloredOfProgram
 
-  , scolorsOfProgram
   , colorsOfProgram
+  , bcolorsOfProgram
 
   , ColorError(..)
   ) where
@@ -26,8 +27,10 @@ import           Data.Void (Void)
 
 import           River.Core.Analysis.Interference
 import           River.Core.Annotation
+import           River.Core.Fresh
 import           River.Core.Scope
 import           River.Core.Syntax
+import           River.Fresh
 
 ------------------------------------------------------------------------
 
@@ -45,7 +48,7 @@ data ColorStrategy e c p n a =
       unusedColor :: n -> Set c -> Either e c
 
       -- | Given a program, find the names that are pre-colored.
-    , precolored :: Program p n a -> Map n c
+    , precolored :: FreshName n => Program p n a -> Fresh (Map n c, Program p n a)
     }
 
 -- | Simple coloring strategy which colors the graph using integers.
@@ -56,27 +59,51 @@ colorByInt =
         \_ used ->
           pure . head $ filter (not . flip Set.member used) [0..]
     , precolored =
-        \_ ->
-          Map.empty
+        \p ->
+          pure (Map.empty, p)
     }
 
 -- | Rename variables to their optimal K-coloring.
 coloredOfProgram ::
   Ord c =>
   Ord n =>
+  FreshName n =>
   ColorStrategy e c p n a ->
   Program p n a ->
-  Either (ColorError e n) (Program p c a)
-coloredOfProgram strategy p = do
+  Either (ColorError e n) (Program p (n, c) a)
+coloredOfProgram strategy p0 = do
   let
     lookupName colors n =
       case Map.lookup n colors of
         Nothing ->
           Left $ MissingFromColorMap n
         Just x ->
-          Right x
-  colors <- scolorsOfProgram strategy p
+          Right (n, x)
+  (colors, p) <- colorsOfProgram strategy p0
   bitraverse (lookupName colors) pure p
+
+-- | Rename variables to their potentially pre-colored names.
+precoloredOfProgram ::
+  Ord c =>
+  Ord n =>
+  FreshName n =>
+  ColorStrategy e c p n a ->
+  Program p n a ->
+  Program p (n, Maybe c) a
+precoloredOfProgram strategy p0 =
+  let
+    (colors, p) =
+      runFreshFrom (nextOfProgram p0) $
+      precolored strategy p0
+
+    lookupName n =
+      case Map.lookup n colors of
+        Nothing ->
+          (n, Nothing)
+        Just x ->
+          (n, Just x)
+  in
+    first lookupName p
 
 ------------------------------------------------------------------------
 
@@ -84,15 +111,20 @@ coloredOfProgram strategy p = do
 --
 --   Simplical elimination ordering method.
 --
-scolorsOfProgram ::
+colorsOfProgram ::
   forall e c p n a.
   Ord c =>
   Ord n =>
+  FreshName n =>
   ColorStrategy e c p n a ->
   Program p n a ->
-  Either (ColorError e n) (Map n c)
-scolorsOfProgram strategy p =
+  Either (ColorError e n) (Map n c, Program p n a)
+colorsOfProgram strategy p0 = do
   let
+    (colors0, p) =
+      runFreshFrom (nextOfProgram p0) $
+      precolored strategy p0
+
     interference :: InterferenceGraph n
     interference =
       interferenceOfProgram p
@@ -103,7 +135,7 @@ scolorsOfProgram strategy p =
       orderingOfProgram p
 
     go :: Map n c -> n -> Either (ColorError e n) (Map n c)
-    go colors n =
+    go colors n = do
       if Map.member n colors then
         -- pre-colored node
         pure colors
@@ -123,8 +155,9 @@ scolorsOfProgram strategy p =
 
         pure $
           Map.insert n color colors
-  in
-    foldM go (precolored strategy p) ordering
+
+  colors <- foldM go colors0 ordering
+  pure (colors, p)
 
 ------------------------------------------------------------------------
 
@@ -160,18 +193,20 @@ orderingOfTerm = \case
 --
 --   This doesn't seem to work when we need precolored nodes.
 --
-colorsOfProgram ::
+bcolorsOfProgram ::
   Ord c =>
   Ord n =>
+  FreshName n =>
   ColorStrategy e c p n a ->
   Program p n a ->
-  Either (ColorError e n) (Map n c)
-colorsOfProgram strategy p =
-  case p of
-    Program _ tm ->
-      colorsOfTerm strategy (precolored strategy p) (annotFreeOfTerm tm)
+  Either (ColorError e n) (Map n c, Program p n a)
+bcolorsOfProgram strategy p0 = do
+  case runFreshFrom (nextOfProgram p0) $ precolored strategy p0 of
+    (colors0, p@(Program _ tm)) -> do
+      colors <- bcolorsOfTerm strategy colors0 (annotFreeOfTerm tm)
+      pure (colors, p)
 
-colorsOfTerm ::
+bcolorsOfTerm ::
   forall e c p n a.
   Ord c =>
   Ord n =>
@@ -179,7 +214,7 @@ colorsOfTerm ::
   Map n c ->
   Term p n (Free n a) ->
   Either (ColorError e n) (Map n c)
-colorsOfTerm strategy colored0 = \case
+bcolorsOfTerm strategy colored0 = \case
   Let (Free _ _) ns0 _ tm -> do
     let
       bound =
@@ -206,7 +241,7 @@ colorsOfTerm strategy colored0 = \case
         pure $ Map.insert n color colors
 
     colored <- foldM go colored0 needColor
-    colorsOfTerm strategy colored tm
+    bcolorsOfTerm strategy colored tm
 
   Return _ _ ->
     pure colored0
