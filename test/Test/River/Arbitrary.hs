@@ -41,14 +41,45 @@ instance Show X where
 ------------------------------------------------------------------------
 
 deriveEnumerable ''X
+deriveEnumerable ''Type
 deriveEnumerable ''UnaryOp
 deriveEnumerable ''BinaryOp
-deriveEnumerable ''Statement
+deriveEnumerable ''Expression
+
+enumerateAssignment :: Enumerable a => Enumerate (Statement a)
+enumerateAssignment =
+  unary . funcurry . funcurry . funcurry $ \a n op x ->
+    Assignment a n (unAssignmentOp op) x
+
+newtype AssignmentOp =
+  AssignmentOp {
+      unAssignmentOp :: Maybe BinaryOp
+    }
+
+instance Enumerable AssignmentOp where
+  enumerate =
+    consts
+      [ nullary . AssignmentOp $ Nothing
+      , nullary . AssignmentOp $ Just Mul
+      , nullary . AssignmentOp $ Just Div
+      , nullary . AssignmentOp $ Just Mod
+      , nullary . AssignmentOp $ Just Add
+      , nullary . AssignmentOp $ Just Sub
+      , nullary . AssignmentOp $ Just Shl
+      , nullary . AssignmentOp $ Just Shr
+      , nullary . AssignmentOp $ Just BAnd
+      , nullary . AssignmentOp $ Just BXor
+      , nullary . AssignmentOp $ Just BOr
+      ]
+
+deriveEnumerable' .
+  dExcept 'Assignment [| enumerateAssignment |] $
+  dAll ''Statement
 
 -- Literals cannot be negative
 deriveEnumerable' .
-  dExcept 'Literal [| unary . uncurry $ \a -> Literal a . nat |] $
-  dAll ''Expression
+  dExcept 'LiteralInt [| unary $ LiteralInt . nat |] $
+  dAll ''Literal
 
 -- Identifiers must not be reserved words or empty
 instance Enumerable Identifier where
@@ -82,6 +113,13 @@ instance Arbitrary BinaryOp where
   shrink =
     genericShrink
 
+instance Arbitrary Type where
+  arbitrary =
+    sized uniform
+
+  shrink =
+    genericShrink
+
 instance Arbitrary Identifier where
   arbitrary =
     sized uniform `suchThat` \(Identifier ns) ->
@@ -92,6 +130,13 @@ instance Arbitrary Identifier where
       fmap (Identifier . T.pack) .
       filter legalIdent $
       shrink (T.unpack n)
+
+instance Arbitrary Literal where
+  arbitrary =
+    sized uniform
+
+  shrink =
+    genericShrink
 
 instance (Enumerable a, Arbitrary a) => Arbitrary (Expression a) where
   arbitrary =

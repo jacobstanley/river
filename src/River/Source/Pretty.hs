@@ -19,8 +19,8 @@ import           System.Console.ANSI (SGR(..), setSGRCode)
 import           Text.PrettyPrint.Annotated.Leijen (Doc)
 import           Text.PrettyPrint.Annotated.Leijen ((<+>), (<>))
 import           Text.PrettyPrint.Annotated.Leijen (annotate, noAnnotate)
-import           Text.PrettyPrint.Annotated.Leijen (parens, text, integer)
-import           Text.PrettyPrint.Annotated.Leijen (semi, empty)
+import           Text.PrettyPrint.Annotated.Leijen (text, integer)
+import           Text.PrettyPrint.Annotated.Leijen (empty)
 import           Text.PrettyPrint.Annotated.Leijen (vcat, indent)
 import qualified Text.PrettyPrint.Annotated.Leijen as Pretty
 
@@ -33,6 +33,7 @@ data OutputAnnot =
   | AnnAssignment
   | AnnKeyword
   | AnnOperator
+  | AnnPunctuation
     deriving (Eq, Ord, Read, Show)
 
 ------------------------------------------------------------------------
@@ -62,6 +63,8 @@ displayProgram program =
         setSGRCode [SetColor Foreground Dull Blue]
       AnnOperator ->
         setSGRCode [SetColor Foreground Dull Yellow]
+      AnnPunctuation ->
+        setSGRCode [SetColor Foreground Dull White]
   in
     Pretty.displayDecorated put doc
 
@@ -72,38 +75,77 @@ ppProgram = \case
   Program _ ss ->
     vcat [
         ppKeyword "int" <+>
-          annotate AnnDeclaration (text "main") <> text "() {"
+          annotate AnnDeclaration (text "main") <> ppPunctuation "() {"
       , indent 4 (vcat (map ppStatement ss))
-      , text "}"
+      , ppPunctuation "}"
+      ]
+
+ppStatements :: [Statement a] -> Doc OutputAnnot
+ppStatements = \case
+  [] ->
+    vcat [
+        ppPunctuation "{"
+      , ppPunctuation "}" ]
+  ss ->
+    vcat [
+        ppPunctuation "{"
+      , indent 4 . vcat $ fmap ppStatement ss
+      , ppPunctuation "}"
       ]
 
 ppStatement :: Statement a -> Doc OutputAnnot
 ppStatement = \case
-  Declaration _ n mx ->
+  Declaration _ typ n mx ->
     let
       assignment x =
         empty <+> ppOperator "=" <+> ppExpression 0 x
     in
-      ppKeyword "int" <+>
+      ppType typ <+>
       annotate AnnDeclaration (ppIdentifier n) <>
       maybe empty assignment mx <>
-      semi
+      ppSemi
 
   Assignment _ n op x ->
     annotate AnnAssignment (ppIdentifier n) <+>
     ppAssignOp op <+>
     ppExpression 0 x <>
-    semi
+    ppSemi
+
+  If _ i t [] ->
+    ppKeyword "if" <+>
+    ppParens0 (ppExpression 0 i) <+>
+    ppStatements t
+
+  If _ i t [e@(If _ _ _ _)] ->
+    ppKeyword "if" <+>
+    ppParens0 (ppExpression 0 i) <+>
+    ppStatements t <+>
+    ppKeyword "else" <+>
+    ppStatement e
+
+  If _ i t e ->
+    ppKeyword "if" <+>
+    ppParens0 (ppExpression 0 i) <+>
+    ppStatements t <+>
+    ppKeyword "else" <+>
+    ppStatements e
 
   Return _ x ->
     ppKeyword "return" <+>
     ppExpression 0 x <>
-    semi
+    ppSemi
+
+ppType :: Type -> Doc OutputAnnot
+ppType = \case
+  Int ->
+    ppKeyword "int"
+  Bool ->
+    ppKeyword "bool"
 
 ppExpression :: Prec -> Expression a -> Doc OutputAnnot
 ppExpression p = \case
-  Literal  _ i ->
-    annotate AnnLiteral (integer i)
+  Literal  _ x ->
+    annotate AnnLiteral (ppLiteral x)
 
   Variable _ n ->
     annotate AnnVariable (ppIdentifier n)
@@ -127,6 +169,25 @@ ppExpression p = \case
         ppBinaryOp op <+>
         ppExpression (pop+1) y
 
+  Conditional _ i t e ->
+    let
+      pop =
+        0
+    in
+      ppParens (p > pop) $
+        ppExpression (pop+1) i <+> ppOperator "?" <+>
+        ppExpression (pop+1) t <+> ppOperator ":" <+>
+        ppExpression (pop+1) e
+
+ppLiteral :: Literal -> Doc OutputAnnot
+ppLiteral = \case
+  LiteralInt i ->
+    integer i
+  LiteralBool True ->
+    text "true"
+  LiteralBool False ->
+    text "false"
+
 ------------------------------------------------------------------------
 
 ppIdentifier :: Identifier -> Doc OutputAnnot
@@ -136,6 +197,10 @@ ppIdentifier = \case
 
 ppUnaryOp :: UnaryOp -> Doc OutputAnnot
 ppUnaryOp = \case
+  LNot ->
+    ppOperator "!"
+  BNot ->
+    ppOperator "~"
   Neg ->
     ppOperator "-"
 
@@ -149,16 +214,42 @@ ppAssignOp = \case
 
 ppBinaryOp :: BinaryOp -> Doc OutputAnnot
 ppBinaryOp = \case
-  Add ->
-    ppOperator "+"
-  Sub ->
-    ppOperator "-"
   Mul ->
     ppOperator "*"
   Div ->
     ppOperator "/"
   Mod ->
     ppOperator "%"
+  Add ->
+    ppOperator "+"
+  Sub ->
+    ppOperator "-"
+  Shl ->
+    ppOperator "<<"
+  Shr ->
+    ppOperator ">>"
+  Lt ->
+    ppOperator "<"
+  Le ->
+    ppOperator "<="
+  Gt ->
+    ppOperator ">"
+  Ge ->
+    ppOperator ">="
+  Eq ->
+    ppOperator "=="
+  NEq ->
+    ppOperator "!="
+  BAnd ->
+    ppOperator "&"
+  BXor ->
+    ppOperator "^"
+  BOr ->
+    ppOperator "|"
+  LAnd ->
+    ppOperator "&&"
+  LOr ->
+    ppOperator "||"
 
 ppKeyword :: String -> Doc OutputAnnot
 ppKeyword =
@@ -168,31 +259,73 @@ ppOperator :: String -> Doc OutputAnnot
 ppOperator =
   annotate AnnOperator . text
 
+ppPunctuation :: String -> Doc OutputAnnot
+ppPunctuation =
+  annotate AnnPunctuation . text
+
+ppSemi :: Doc OutputAnnot
+ppSemi =
+  ppPunctuation ";"
+
 ------------------------------------------------------------------------
 
 type Prec = Int
 
-ppParens :: Bool -> Doc a -> Doc a
+ppParens :: Bool -> Doc OutputAnnot -> Doc OutputAnnot
 ppParens ok =
   if ok then
-    parens
+    ppParens0
   else
     id
 
+ppParens0 :: Doc OutputAnnot -> Doc OutputAnnot
+ppParens0 doc =
+  ppPunctuation "(" <> doc <> ppPunctuation ")"
+
 precUnaryOp :: UnaryOp -> Prec
 precUnaryOp = \case
+  LNot ->
+    11
+  BNot ->
+    11
   Neg ->
-    3
+    11
 
 precBinaryOp :: BinaryOp -> Prec
 precBinaryOp = \case
-  Add ->
-    1
-  Sub ->
-    1
   Mul ->
-    2
+    10
   Div ->
-    2
+    10
   Mod ->
+    10
+  Add ->
+    9
+  Sub ->
+    9
+  Shl ->
+    8
+  Shr ->
+    8
+  Lt ->
+    7
+  Le ->
+    7
+  Gt ->
+    7
+  Ge ->
+    7
+  Eq ->
+    6
+  NEq ->
+    6
+  BAnd ->
+    5
+  BXor ->
+    4
+  BOr ->
+    3
+  LAnd ->
     2
+  LOr ->
+    1

@@ -31,10 +31,10 @@ coreOfStatements = \case
       Core.Return Nothing $
       Core.Copy Nothing []
 
-  Declaration _ _ Nothing : ss ->
+  Declaration _ _ _ Nothing : ss ->
     coreOfStatements ss
 
-  Declaration _ (Identifier n) (Just x) : ss -> do
+  Declaration _ _ (Identifier n) (Just x) : ss -> do
     term_let <- coreOfExpression (Name n) x
     term_ss <- coreOfStatements ss
 
@@ -77,7 +77,7 @@ coreOfExpression ::
   Fresh
     (Core.Term Core.Prim (Name Text) (Maybe a) -> Core.Term Core.Prim (Name Text) (Maybe a))
 coreOfExpression dst = \case
-  Literal a x ->
+  Literal a (LiteralInt x) ->
     pure $
       Core.Let (Just a) [dst] $
       Core.Copy (Just a) [Core.Immediate (Just a) x]

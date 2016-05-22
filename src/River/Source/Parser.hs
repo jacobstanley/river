@@ -88,22 +88,28 @@ pProgram = do
 
 pStatement :: RiverParser (Statement Delta)
 pStatement =
-  (pDeclaration <?> "declaration") <|>
-  (pAssignment <?> "assignment") <|>
+  (try $ pDeclaration <?> "declaration") <|>
+  (try $ pAssignment <?> "assignment") <|>
+  (try $ pIf <?> "if statement") <|>
   (pReturn <?> "return")
+
+pStatements :: RiverParser [Statement Delta]
+pStatements =
+  fmap (:[]) pStatement <|>
+  braces (many pStatement)
 
 pDeclaration :: RiverParser (Statement Delta)
 pDeclaration = do
   pos <- position
 
-  try $ pReserved "int"
+  typ <- try pType
   name <- pIdentifier
   expr <- (pEquals *> (Just <$> pExpression)) <|> pure Nothing
 
   _ <- semi
 
   return $
-    Declaration pos name expr
+    Declaration pos typ name expr
 
 pAssignment :: RiverParser (Statement Delta)
 pAssignment =
@@ -113,34 +119,85 @@ pAssignment =
     <*> pAssignOp
     <*> pExpression <* semi
 
+pIf :: RiverParser (Statement Delta)
+pIf =
+  let
+    elseopt =
+      pReserved "else" *> pStatements
+  in
+    If
+      <$> position
+      <*> (pReserved "if" *> parens pExpression)
+      <*> pStatements
+      <*> (elseopt <|> pure [])
+
 pAssignOp :: RiverParser (Maybe BinaryOp)
 pAssignOp =
   pOperator "="  *> pure Nothing <|>
-  pOperator "+=" *> pure (Just Add) <|>
-  pOperator "-=" *> pure (Just Sub) <|>
   pOperator "*=" *> pure (Just Mul) <|>
   pOperator "/=" *> pure (Just Div) <|>
-  pOperator "%=" *> pure (Just Mod)
+  pOperator "%=" *> pure (Just Mod) <|>
+  pOperator "+=" *> pure (Just Add) <|>
+  pOperator "-=" *> pure (Just Sub) <|>
+  pOperator "<<=" *> pure (Just Shl) <|>
+  pOperator ">>=" *> pure (Just Shr) <|>
+  pOperator "&=" *> pure (Just BAnd) <|>
+  pOperator "^=" *> pure (Just BXor) <|>
+  pOperator "|=" *> pure (Just BOr)
 
 pReturn :: RiverParser (Statement Delta)
 pReturn =
   Return
     <$> position
-    <*> (try (pReserved "return") *> pExpression) <*  semi
+    <*> (pReserved "return" *> pExpression) <* semi
 
 ------------------------------------------------------------------------
 
+pType :: RiverParser Type
+pType =
+  (Int <$ pReserved "int") <|>
+  (Bool <$ pReserved "bool") <?> "type"
+
 pExpression :: RiverParser (Expression Delta)
 pExpression =
-  buildExpressionParser opTable pExpression0 <?> "expression"
+  try pConditional <|> pExpression0
+
+pConditional :: RiverParser (Expression Delta)
+pConditional =
+  Conditional
+    <$> position
+    <*> pExpression0 <* pOperator "?"
+    <*> pExpression  <* pOperator ":"
+    <*> pExpression
 
 pExpression0 :: RiverParser (Expression Delta)
 pExpression0 =
-  parens (pExpression) <|> try pLiteral <|> pVariable
+  buildExpressionParser opTable pExpression1 <?> "expression"
+
+pExpression1 :: RiverParser (Expression Delta)
+pExpression1 =
+  parens (pExpression) <|>
+  try pLiteral <|>
+  pVariable
 
 pLiteral :: RiverParser (Expression Delta)
 pLiteral =
-  Literal <$> position <*> natural <?> "literal"
+  Literal
+    <$> position
+    <*> (pLiteralInt <|> pLiteralTrue <|> pLiteralFalse)
+    <?> "literal"
+
+pLiteralInt :: RiverParser Literal
+pLiteralInt =
+  LiteralInt <$> natural <?> "integer"
+
+pLiteralTrue :: RiverParser Literal
+pLiteralTrue =
+  LiteralBool <$> (True <$ pReserved "true") <?> "true"
+
+pLiteralFalse :: RiverParser Literal
+pLiteralFalse =
+  LiteralBool <$> (False <$ pReserved "false") <?> "false"
 
 pVariable :: RiverParser (Expression Delta)
 pVariable =
@@ -148,14 +205,37 @@ pVariable =
 
 opTable :: DeltaParsing m => [[Operator m (Expression Delta)]]
 opTable =
-  [ [ prefix "-" (\p -> Unary  p Neg)
+  [ [ prefix "!"  (\p -> Unary p LNot)
+    , prefix "~"  (\p -> Unary p BNot)
+    , prefix "-"  (\p -> Unary p Neg)
     ]
-  , [ binary "*" (\p -> Binary p Mul) AssocLeft
-    , binary "/" (\p -> Binary p Div) AssocLeft
-    , binary "%" (\p -> Binary p Mod) AssocLeft
+  , [ binary "*"  (\p -> Binary p Mul) AssocLeft
+    , binary "/"  (\p -> Binary p Div) AssocLeft
+    , binary "%"  (\p -> Binary p Mod) AssocLeft
     ]
-  , [ binary "+" (\p -> Binary p Add) AssocLeft
-    , binary "-" (\p -> Binary p Sub) AssocLeft
+  , [ binary "+"  (\p -> Binary p Add) AssocLeft
+    , binary "-"  (\p -> Binary p Sub) AssocLeft
+    ]
+  , [ binary "<<" (\p -> Binary p Shl) AssocLeft
+    , binary ">>" (\p -> Binary p Shr) AssocLeft
+    ]
+  , [ binary "<"  (\p -> Binary p Lt) AssocLeft
+    , binary "<=" (\p -> Binary p Le) AssocLeft
+    , binary ">"  (\p -> Binary p Gt) AssocLeft
+    , binary ">=" (\p -> Binary p Ge) AssocLeft
+    ]
+  , [ binary "==" (\p -> Binary p Eq) AssocLeft
+    , binary "!=" (\p -> Binary p NEq) AssocLeft
+    ]
+  , [ binary "&"  (\p -> Binary p BAnd) AssocLeft
+    ]
+  , [ binary "^"  (\p -> Binary p BXor) AssocLeft
+    ]
+  , [ binary "|"  (\p -> Binary p BOr) AssocLeft
+    ]
+  , [ binary "&&" (\p -> Binary p LAnd) AssocLeft
+    ]
+  , [ binary "||" (\p -> Binary p LOr) AssocLeft
     ]
   ]
 
@@ -169,13 +249,13 @@ pReserved :: (Monad m, TokenParsing m) => String -> m ()
 pReserved =
   reserve identStyle
 
-pOperator :: TokenParsing m => String -> m String
-pOperator name =
-  token (highlight Highlight.Operator (string name))
+pOperator :: (Monad m, TokenParsing m) => String -> m ()
+pOperator =
+  reserve opStyle
 
-pEquals :: TokenParsing m => m ()
+pEquals :: (Monad m, TokenParsing m) => m ()
 pEquals =
-  pOperator "=" *> pure ()
+  pOperator "="
 
 ------------------------------------------------------------------------
 -- Operator Table
@@ -184,13 +264,13 @@ binary ::
   DeltaParsing m =>
   String -> (Delta -> a -> a -> a) -> Assoc -> Operator m a
 binary name fun assoc =
-  Infix (fun <$> (position <* pOperator name)) assoc
+  Infix (fmap fun (position <* pOperator name)) assoc
 
 prefix ::
   DeltaParsing m =>
   String -> (Delta -> a -> a) -> Operator m a
 prefix name fun =
-  Prefix (fun <$> (position <* pOperator name))
+  Prefix (fmap fun (position <* pOperator name))
 
 ------------------------------------------------------------------------
 -- Parser Monad
@@ -268,14 +348,27 @@ identStyle =
 
 reservedNames :: HashSet String
 reservedNames =
-  HashSet.fromList [
-      "struct", "typedef"
-    , "if", "else", "while", "for"
-    , "continue", "break", "return"
+  HashSet.fromList
+    [ "struct"
+    , "typedef"
+    , "if"
+    , "else"
+    , "while"
+    , "for"
+    , "continue"
+    , "break"
+    , "return"
     , "assert"
-    , "true", "false", "NULL"
-    , "alloc", "alloc_array"
-    , "int", "bool", "void", "char", "string"
+    , "true"
+    , "false"
+    , "NULL"
+    , "alloc"
+    , "alloc_array"
+    , "int"
+    , "bool"
+    , "void"
+    , "char"
+    , "string"
     ]
 
 pIdentStart :: CharParsing m => m Char
@@ -285,6 +378,36 @@ pIdentStart =
 pIdentLetter :: CharParsing m => m Char
 pIdentLetter =
   alphaNum <|> char '_'
+
+opStyle :: CharParsing m => IdentifierStyle m
+opStyle =
+  IdentifierStyle {
+      _styleName =
+        "operator"
+
+    , _styleStart =
+        pOpStart
+
+    , _styleLetter =
+        pOpLetter
+
+    , _styleReserved =
+        HashSet.empty
+
+    , _styleHighlight =
+        Highlight.Operator
+
+    , _styleReservedHighlight =
+        Highlight.ReservedOperator
+    }
+
+pOpStart :: CharParsing m => m Char
+pOpStart =
+  Trifecta.oneOf "!~-*/%+<>&^|=?:"
+
+pOpLetter :: CharParsing m => m Char
+pOpLetter =
+  Trifecta.oneOf "<>&|="
 
 ------------------------------------------------------------------------
 -- Delta

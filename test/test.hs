@@ -17,5 +17,5 @@ main = do
 tests :: [IO Bool]
 tests = [
     Test.River.Parser.tests
-  , Test.River.Evaluation.tests
+  -- , Test.River.Evaluation.tests
   ]

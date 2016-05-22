@@ -27,7 +27,7 @@ freeOfProgram = \case
 freeOfStatements :: Ord a => [Statement a] -> Map Identifier (Set a)
 freeOfStatements []     = Map.empty
 freeOfStatements (s:ss) = case s of
-  Declaration _ n mx ->
+  Declaration _ _ n mx ->
     let
       fx =
         maybe Map.empty freeOfExpression mx
@@ -72,10 +72,10 @@ uninitializedOfStatements = \case
   [] ->
     Map.empty
 
-  Declaration _ _ Nothing : ss ->
+  Declaration _ _ _ Nothing : ss ->
     uninitializedOfStatements ss
 
-  Declaration _ n (Just x) : ss ->
+  Declaration _ _ n (Just x) : ss ->
    let
      ux =
        uninitializedOfExpression x
