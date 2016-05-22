@@ -134,6 +134,10 @@ scolorsOfProgram strategy p =
 --   also. My assumption is that a pre-order traversal of an SSA dominator tree
 --   is equivalent to a pre-order traversal of a program in ANF.
 --
+--   Spoke to Patryk regarding dominator tree traversal vs ANF traversal, they
+--   should be equivalent as long as lambda dropping has been applied to the
+--   ANF program.
+--
 --   1. Sebastian Hack. Register Allocation for Programs in SSA Form, 2007
 --
 orderingOfProgram :: Program p n a -> [n]
