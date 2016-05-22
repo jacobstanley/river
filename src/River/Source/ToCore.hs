@@ -12,6 +12,7 @@ import           Data.Text (Text)
 
 import qualified River.Core.Primitive as Core
 import qualified River.Core.Syntax as Core
+import           River.Core.Transform.Rename
 import           River.Fresh
 import           River.Name
 import           River.Source.Syntax
@@ -20,7 +21,8 @@ import           River.Source.Syntax
 coreOfProgram :: Program a -> Core.Program Core.Prim (Name Text) (Maybe a)
 coreOfProgram = \case
   Program a ss ->
-    Core.Program (Just a) . runFresh $ coreOfStatements ss
+    runFresh $
+      renameProgram =<< Core.Program (Just a) <$> coreOfStatements ss
 
 coreOfStatements :: [Statement a] -> Fresh (Core.Term Core.Prim (Name Text) (Maybe a))
 coreOfStatements = \case
