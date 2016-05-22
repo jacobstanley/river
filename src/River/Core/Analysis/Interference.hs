@@ -7,6 +7,7 @@ module River.Core.Analysis.Interference (
   , mapOfInterference
   , neighbors
   , fromNeighboring
+  , ppInterferenceGraph
 
   , interferenceOfProgram
   , interferenceOfTerm
@@ -21,6 +22,9 @@ import qualified Data.Set as Set
 import           River.Core.Annotation
 import           River.Core.Scope
 import           River.Core.Syntax
+
+import           Text.PrettyPrint.Boxes ((//), (<+>))
+import qualified Text.PrettyPrint.Boxes as Box
 
 
 newtype InterferenceGraph n =
@@ -54,6 +58,8 @@ fromNeighboring =
        (y, Set.fromList (xs ++ ys)) : go (y : xs) ys
   in
     InterferenceGraph . Map.fromList . go [] . Set.toList
+
+------------------------------------------------------------------------
 
 -- | Find the interference graph of a program.
 interferenceOfProgram :: Ord n => Program p n a -> InterferenceGraph n
@@ -93,3 +99,50 @@ interferenceOfAnnotTerm xx =
         interferenceOfAnnotTerm tm
       Return _ _ ->
         termInterference
+
+------------------------------------------------------------------------
+
+ppInterferenceGraph :: (n -> String) -> InterferenceGraph n -> String
+ppInterferenceGraph ppName g =
+  let
+    (names, neighbors') =
+      unzip . Map.toList $ mapOfInterference g
+
+    nameBox =
+      Box.text . ppName
+
+    nameColumn =
+      Box.vcat Box.left $
+      fmap nameBox names
+
+    arrowColumn =
+      Box.vcat Box.left (Box.text "->" <$ names)
+
+    neighborsColumn =
+      Box.vcat Box.left $
+      fmap (neighborsRow . Set.toList) neighbors'
+
+    neighborsRow = \case
+      [] ->
+        Box.text "(none)"
+      xs ->
+        Box.hsep 1 Box.left $
+        fmap nameBox xs
+
+    column label rows =
+      let
+        header =
+          Box.alignHoriz Box.center1 (Box.cols rows) (Box.text label)
+
+        divider =
+          Box.text (replicate (Box.cols header `max` Box.cols rows) '=')
+      in
+        header // divider // rows
+  in
+    reverse .
+    dropWhile (== '\n') .
+    reverse .
+    Box.render $
+      (column "Var" nameColumn) <+>
+      (Box.emptyBox 2 1 // arrowColumn) <+>
+      (column "Neighbors" neighborsColumn)

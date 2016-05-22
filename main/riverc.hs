@@ -10,6 +10,7 @@ import qualified Data.Text as T
 import qualified Data.Text.IO as T
 
 import           River.Compile
+import           River.Core.Analysis.Interference
 import           River.Core.Color
 import           River.Core.Evaluator
 import           River.Core.Fresh
@@ -130,6 +131,12 @@ dump path = do
       putStrLn ""
       putStrLn $
         either id (Core.displayProgram' X64.ppPrim Core.ppName) eassim
+
+      putStrLn ""
+      putStrLn "-- Interference Graph --"
+      putStrLn ""
+      putStrLn $
+        either id (ppInterferenceGraph (show . Core.ppName) . interferenceOfProgram) eassim
 
       putStrLn ""
       putStrLn "-- Registers Allocated --"
