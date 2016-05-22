@@ -149,6 +149,11 @@ coalesce =
         , y0 == x1 ->
           go $ Movq x0 y0 : xs
 
+      Movq _ y0 : Movq x1 y1 : xs
+        | y0 /= x1
+        , y0 == y1 ->
+          go $ Movq x1 y1 : xs
+
       x : xs ->
         x : go xs
   in
