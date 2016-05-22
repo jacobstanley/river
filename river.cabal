@@ -63,8 +63,10 @@ library
                     River.Core.Scope
                     River.Core.Syntax
                     River.Core.Transform.Rename
+                    River.Core.Transform.Coalesce
 
                     River.Fresh
+                    River.Map
                     River.Name
 
                     River.Source.Check

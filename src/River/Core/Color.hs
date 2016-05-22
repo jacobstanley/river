@@ -31,6 +31,7 @@ import           River.Core.Fresh
 import           River.Core.Scope
 import           River.Core.Syntax
 import           River.Fresh
+import           River.Map
 
 ------------------------------------------------------------------------
 
@@ -245,9 +246,3 @@ bcolorsOfTerm strategy colored0 = \case
 
   Return _ _ ->
     pure colored0
-
-------------------------------------------------------------------------
-
-mapIntersectionSet :: Ord k => Map k v -> Set k -> Map k v
-mapIntersectionSet m =
-  Map.intersection m . Map.fromSet (const ())

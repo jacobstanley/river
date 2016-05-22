@@ -14,6 +14,7 @@ import           River.Core.Color
 import           River.Core.Fresh
 import qualified River.Core.Primitive as Core
 import           River.Core.Syntax
+import           River.Core.Transform.Coalesce
 import           River.Fresh
 import           River.Name
 import           River.X64.Assimilate
@@ -40,17 +41,17 @@ assemblyOfProgram p0 = do
     runFreshN =
       runFreshFrom $ nextOfProgram p0
   p1 <- first AssimilateError . runFreshN . runExceptT $ assimilateProgram p0
-  p <- first RegisterAllocationError $ coloredOfProgram colorByRegister p1
-  case p of
+  p2 <- first RegisterAllocationError $ coloredOfProgram colorByRegister p1
+  case coalesceProgram $ first snd p2 of
     Program _ tm ->
-      fmap coalesce $
-      assemblyOfTerm $
-      first snd tm
+      assemblyOfTerm tm
 
 assemblyOfTerm :: Term X64.Prim Register64 a -> Either (X64Error n a) [Instruction]
 assemblyOfTerm = \case
   Let _ ns tl tm ->
     (++) <$> assemblyOfTail (fmap Register64 ns) tl <*> assemblyOfTerm tm
+  Return _ (Copy _ [Variable _ RAX]) ->
+    pure [Ret]
   Return _ tl ->
     (++) <$> assemblyOfTail [Register64 RAX] tl <*> pure [Ret]
 
@@ -131,31 +132,3 @@ operandOfAtom = \case
     Immediate64 $ fromInteger x
   Variable _ x ->
     Register64 x
-
-------------------------------------------------------------------------
-
-coalesce :: [Instruction] -> [Instruction]
-coalesce =
-  let
-    go = \case
-      [] ->
-        []
-
-      Movq x y : xs
-        | x == y ->
-          go xs
-
-      Movq x0 y0 : Movq x1 y1 : xs
-        | x0 == y1
-        , y0 == x1 ->
-          go $ Movq x0 y0 : xs
-
-      Movq _ y0 : Movq x1 y1 : xs
-        | y0 /= x1
-        , y0 == y1 ->
-          go $ Movq x1 y1 : xs
-
-      x : xs ->
-        x : go xs
-  in
-    go

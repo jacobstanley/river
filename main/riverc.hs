@@ -15,6 +15,7 @@ import           River.Core.Color
 import           River.Core.Evaluator
 import           River.Core.Fresh
 import qualified River.Core.Pretty as Core
+import           River.Core.Transform.Coalesce
 import           River.Fresh
 import           River.Source.Check
 import           River.Source.Parser
@@ -157,6 +158,14 @@ dump path = do
       putStrLn ""
       putStrLn . fromE ecolored $
         Core.displayProgram' X64.ppPrim X64.ppRegister64 .
+        first snd
+
+      putStrLn ""
+      putStrLn "-- Registers Coalesced --"
+      putStrLn ""
+      putStrLn . fromE ecolored $
+        Core.displayProgram' X64.ppPrim X64.ppRegister64 .
+        coalesceProgram .
         first snd
 
       putStrLn ""

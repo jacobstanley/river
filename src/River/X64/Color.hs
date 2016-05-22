@@ -12,11 +12,11 @@ import           Data.Function (on)
 import qualified Data.List as List
 import           Data.Map (Map)
 import qualified Data.Map as Map
-import           Data.Set (Set)
 
 import           River.Core.Color (ColorStrategy(..))
 import           River.Core.Syntax
 import           River.Fresh
+import           River.Map
 import           River.X64.Primitive
 import           River.X64.Syntax (Register64(..))
 
@@ -39,10 +39,6 @@ colorByRegister =
     , precolored =
         precoloredOfProgram
     }
-
-mapDifferenceSet :: Ord k => Map k v -> Set k -> Map k v
-mapDifferenceSet m =
-  Map.difference m . Map.fromSet (const ())
 
 precoloredOfProgram ::
   Ord n =>
