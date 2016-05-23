@@ -55,13 +55,13 @@ data CompileError =
   | X64Error !(X64Error (Name Text) (Maybe Location))
     deriving (Show)
 
-renderCompileError :: CompileError -> Text
-renderCompileError = \case
+renderCompileError :: [Text] -> CompileError -> Text
+renderCompileError file = \case
   ParseError err ->
     T.pack $ show err
   CheckError errs ->
     T.unlines .
-    fmap ppError .
+    fmap (ppError file) .
     List.sort $
     concatMap ppCheckError errs
   X64Error err ->
@@ -170,9 +170,15 @@ locationOfDelta :: Delta -> Location
 locationOfDelta d =
   Location (fileOfDelta d) (lineOfDelta d) (columnOfDelta d)
 
-ppError :: (Location, Text) -> Text
-ppError (loc, msg) =
-  ppLocation loc <> ": error: " <> msg
+ppError :: [Text] -> (Location, Text) -> Text
+ppError file (loc@(Location _ line col), msg) =
+  ppLocation loc <> ": error: " <> msg <> "\n" <>
+  case drop (line-1) file of
+    [] ->
+      mempty
+    errorLine : _ ->
+      errorLine <> "\n" <>
+      T.replicate (col-1) " " <> "^"
 
 ppLocation :: Location -> Text
 ppLocation (Location file line column) =
@@ -184,18 +190,18 @@ ppCheckError :: CheckError Location -> [(Location, Text)]
 ppCheckError =
   let
     ppUndecl (Identifier n) =
-      "undeclared variable '" <> n <> "'"
+      "variable '" <> n <> "' was not declared before use"
 
     ppUninit (Identifier n) =
-      "uninitialized variable '" <> n <> "'"
+      "variable '" <> n <> "' was not initialized"
 
     ppNoRet =
       "return statement not found"
   in \case
-    UndeclaredVariable n locs ->
-      zip (Set.toList locs) (cycle [ppUndecl n])
-    UninitializedVariable n locs ->
-      zip (Set.toList locs) (cycle [ppUninit n])
+    UndeclaredVariable n loc ->
+      [(loc, ppUndecl n)]
+    UndefinedVariable n _decl uses->
+      zip (Set.toList uses) (cycle [ppUninit n])
     NoReturnStatement loc ->
       [(loc, ppNoRet)]
 

@@ -45,36 +45,8 @@ deriveEnumerable ''Type
 deriveEnumerable ''UnaryOp
 deriveEnumerable ''BinaryOp
 deriveEnumerable ''Expression
-
-enumerateAssignment :: Enumerable a => Enumerate (Statement a)
-enumerateAssignment =
-  unary . funcurry . funcurry . funcurry $ \a n op x ->
-    Assignment a n (unAssignmentOp op) x
-
-newtype AssignmentOp =
-  AssignmentOp {
-      unAssignmentOp :: Maybe BinaryOp
-    }
-
-instance Enumerable AssignmentOp where
-  enumerate =
-    consts
-      [ nullary . AssignmentOp $ Nothing
-      , nullary . AssignmentOp $ Just Mul
-      , nullary . AssignmentOp $ Just Div
-      , nullary . AssignmentOp $ Just Mod
-      , nullary . AssignmentOp $ Just Add
-      , nullary . AssignmentOp $ Just Sub
-      , nullary . AssignmentOp $ Just Shl
-      , nullary . AssignmentOp $ Just Shr
-      , nullary . AssignmentOp $ Just BAnd
-      , nullary . AssignmentOp $ Just BXor
-      , nullary . AssignmentOp $ Just BOr
-      ]
-
-deriveEnumerable' .
-  dExcept 'Assignment [| enumerateAssignment |] $
-  dAll ''Statement
+deriveEnumerable ''Statement
+deriveEnumerable ''Block
 
 -- Literals cannot be negative
 deriveEnumerable' .
@@ -152,14 +124,42 @@ instance (Enumerable a, Arbitrary a) => Arbitrary (Statement a) where
   shrink =
     genericShrink
 
-instance (Enumerable a, Arbitrary a) => Arbitrary (Program a) where
+instance (Enumerable a, Arbitrary a) => Arbitrary (Block a) where
   arbitrary =
-    Program
-      <$> arbitrary
-      <*> arbitrary
+    fmap fixBlock $
+      Block <$> arbitrary <*> arbitrary
 
   shrink =
     genericShrink
+
+instance (Enumerable a, Arbitrary a) => Arbitrary (Program a) where
+  arbitrary =
+    fmap fixProgram $
+      Program <$> arbitrary <*> arbitrary
+
+  shrink =
+    genericShrink
+
+------------------------------------------------------------------------
+
+fixProgram :: Program a -> Program a
+fixProgram = \case
+  Program a b ->
+    Program a (fixBlock b)
+
+fixBlock :: Block a -> Block a
+fixBlock = \case
+  Block a ss ->
+    Block a (fixStatements ss)
+
+fixStatements :: [Statement a] -> [Statement a]
+fixStatements = \case
+  [] ->
+    []
+  Declare a t n (Block ab ss1) : ss2 ->
+    [Declare a t n . Block ab . fixStatements $ ss1 ++ ss2]
+  s : ss ->
+    s : fixStatements ss
 
 ------------------------------------------------------------------------
 

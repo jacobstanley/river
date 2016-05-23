@@ -18,9 +18,8 @@ import           System.Console.ANSI (SGR(..), setSGRCode)
 
 import           Text.PrettyPrint.Annotated.Leijen (Doc)
 import           Text.PrettyPrint.Annotated.Leijen ((<+>), (<>))
-import           Text.PrettyPrint.Annotated.Leijen (annotate, noAnnotate)
+import           Text.PrettyPrint.Annotated.Leijen (annotate)
 import           Text.PrettyPrint.Annotated.Leijen (text, integer)
-import           Text.PrettyPrint.Annotated.Leijen (empty)
 import           Text.PrettyPrint.Annotated.Leijen (vcat, indent)
 import qualified Text.PrettyPrint.Annotated.Leijen as Pretty
 
@@ -29,8 +28,8 @@ import qualified Text.PrettyPrint.Annotated.Leijen as Pretty
 data OutputAnnot =
     AnnLiteral
   | AnnVariable
-  | AnnDeclaration
-  | AnnAssignment
+  | AnnDeclare
+  | AnnAssign
   | AnnKeyword
   | AnnOperator
   | AnnPunctuation
@@ -55,9 +54,9 @@ displayProgram program =
         setSGRCode [SetColor Foreground Dull Red]
       AnnVariable ->
         setSGRCode [SetColor Foreground Dull Green]
-      AnnDeclaration ->
+      AnnDeclare ->
         setSGRCode [SetColor Foreground Dull Magenta]
-      AnnAssignment ->
+      AnnAssign ->
         setSGRCode [SetColor Foreground Dull Cyan]
       AnnKeyword ->
         setSGRCode [SetColor Foreground Dull Blue]
@@ -72,21 +71,21 @@ displayProgram program =
 
 ppProgram :: Program a -> Doc OutputAnnot
 ppProgram = \case
-  Program _ ss ->
+  Program _ (Block _ ss) ->
     vcat [
         ppKeyword "int" <+>
-          annotate AnnDeclaration (text "main") <> ppPunctuation "() {"
+          annotate AnnDeclare (text "main") <> ppPunctuation "() {"
       , indent 4 (vcat (map ppStatement ss))
       , ppPunctuation "}"
       ]
 
-ppStatements :: [Statement a] -> Doc OutputAnnot
-ppStatements = \case
-  [] ->
+ppBlock :: Block a -> Doc OutputAnnot
+ppBlock = \case
+  Block _ [] ->
     vcat [
         ppPunctuation "{"
       , ppPunctuation "}" ]
-  ss ->
+  Block _ ss ->
     vcat [
         ppPunctuation "{"
       , indent 4 . vcat $ fmap ppStatement ss
@@ -95,40 +94,39 @@ ppStatements = \case
 
 ppStatement :: Statement a -> Doc OutputAnnot
 ppStatement = \case
-  Declaration _ typ n mx ->
+  Declare _ typ n (Block _ ss) ->
     let
-      assignment x =
-        empty <+> ppOperator "=" <+> ppExpression 0 x
+      decl =
+        ppType typ <+>
+        annotate AnnDeclare (ppIdentifier n) <>
+        ppSemi
     in
-      ppType typ <+>
-      annotate AnnDeclaration (ppIdentifier n) <>
-      maybe empty assignment mx <>
-      ppSemi
+      vcat $ decl : fmap ppStatement ss
 
-  Assignment _ n op x ->
-    annotate AnnAssignment (ppIdentifier n) <+>
-    ppAssignOp op <+>
+  Assign _ n x ->
+    annotate AnnAssign (ppIdentifier n) <+>
+    ppOperator "=" <+>
     ppExpression 0 x <>
     ppSemi
 
-  If _ i t [] ->
+  If _ i t (Block _ []) ->
     ppKeyword "if" <+>
     ppParens0 (ppExpression 0 i) <+>
-    ppStatements t
+    ppBlock t
 
-  If _ i t [e@(If _ _ _ _)] ->
+  If _ i t (Block _ [e@(If _ _ _ _)]) ->
     ppKeyword "if" <+>
     ppParens0 (ppExpression 0 i) <+>
-    ppStatements t <+>
+    ppBlock t <+>
     ppKeyword "else" <+>
     ppStatement e
 
   If _ i t e ->
     ppKeyword "if" <+>
     ppParens0 (ppExpression 0 i) <+>
-    ppStatements t <+>
+    ppBlock t <+>
     ppKeyword "else" <+>
-    ppStatements e
+    ppBlock e
 
   Return _ x ->
     ppKeyword "return" <+>
@@ -203,14 +201,6 @@ ppUnaryOp = \case
     ppOperator "~"
   Neg ->
     ppOperator "-"
-
-ppAssignOp :: Maybe BinaryOp -> Doc OutputAnnot
-ppAssignOp = \case
-  Nothing ->
-    ppOperator "="
-  Just op ->
-    annotate AnnOperator . noAnnotate $
-      ppBinaryOp op <> text "="
 
 ppBinaryOp :: BinaryOp -> Doc OutputAnnot
 ppBinaryOp = \case

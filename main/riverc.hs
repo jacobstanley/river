@@ -62,8 +62,9 @@ compile :: FilePath -> FilePath -> IO ()
 compile src dst = do
   e <- runExceptT $ compileBinary src dst
   case e of
-    Left xx ->
-      T.putStrLn . T.strip $ renderCompileError xx
+    Left xx -> do
+      file <- T.lines <$> T.readFile src
+      T.putStrLn . T.strip $ renderCompileError file xx
     Right () ->
       return ()
 
@@ -125,7 +126,8 @@ dump path = do
 
       unless (null errors) $ do
         putStrLn ""
-        mapM_ (T.putStrLn . ppError) errors
+        file <- T.lines <$> T.readFile path
+        mapM_ (T.putStrLn . ppError file) errors
 
       putStrLn ""
       putStrLn "-- Core --"

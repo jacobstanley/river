@@ -6,6 +6,7 @@
 {-# LANGUAGE DeriveTraversable #-}
 module River.Source.Syntax (
     Program(..)
+  , Block(..)
   , Statement(..)
   , Expression(..)
   , Literal(..)
@@ -25,13 +26,17 @@ import           GHC.Generics (Generic)
 
 
 data Program a =
-    Program !a ![Statement a]
+    Program !a !(Block a)
+    deriving (Eq, Ord, Read, Show, Functor, Foldable, Traversable, Data, Typeable, Generic, NFData)
+
+data Block a =
+    Block !a ![Statement a]
     deriving (Eq, Ord, Read, Show, Functor, Foldable, Traversable, Data, Typeable, Generic, NFData)
 
 data Statement a =
-    Declaration !a !Type !Identifier !(Maybe (Expression a))
-  | Assignment !a !Identifier !(Maybe BinaryOp) !(Expression a)
-  | If !a !(Expression a) ![Statement a] ![Statement a]
+    Declare !a !Type !Identifier !(Block a)
+  | Assign !a !Identifier !(Expression a)
+  | If !a !(Expression a) !(Block a) !(Block a)
   | Return !a !(Expression a)
     deriving (Eq, Ord, Read, Show, Functor, Foldable, Traversable, Data, Typeable, Generic, NFData)
 

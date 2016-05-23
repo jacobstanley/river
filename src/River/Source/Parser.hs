@@ -75,61 +75,91 @@ parseProgram' name source =
 pProgram :: RiverParser (Program Delta)
 pProgram = do
   whiteSpace
-  pos <- position
-
   pReserved "int"
+
+  pos <- position
   pReserved "main"
   parens $ pure ()
 
   braces $
-    Program pos <$> many pStatement
+    Program pos . Block pos <$> many pStatement
 
 ------------------------------------------------------------------------
 
 pStatement :: RiverParser (Statement Delta)
 pStatement =
-  (try $ pDeclaration <?> "declaration") <|>
-  (try $ pAssignment <?> "assignment") <|>
+  (try $ pDeclare <?> "declaration") <|>
+  (try $ pAssign <?> "assignment") <|>
   (try $ pIf <?> "if statement") <|>
   (pReturn <?> "return")
 
-pStatements :: RiverParser [Statement Delta]
-pStatements =
-  fmap (:[]) pStatement <|>
-  braces (many pStatement)
+pBlock :: RiverParser (Block Delta)
+pBlock = do
+  pos <- position
+  ss <-
+    fmap (:[]) pStatement <|>
+    braces (many pStatement)
+  pure $ Block pos ss
 
-pDeclaration :: RiverParser (Statement Delta)
-pDeclaration = do
+pEmptyBlock :: RiverParser (Block Delta)
+pEmptyBlock =
+  Block <$> position <*> pure []
+
+pDeclare :: RiverParser (Statement Delta)
+pDeclare = do
   pos <- position
 
   typ <- try pType
   name <- pIdentifier
-  expr <- (pEquals *> (Just <$> pExpression)) <|> pure Nothing
+  mexpr <- (pEquals *> (Just <$> pExpression)) <|> pure Nothing
 
   _ <- semi
 
-  return $
-    Declaration pos typ name expr
+  bpos <- position
+  ss <- many pStatement
 
-pAssignment :: RiverParser (Statement Delta)
-pAssignment =
-  Assignment
-    <$> position
-    <*> pIdentifier
-    <*> pAssignOp
-    <*> pExpression <* semi
+  let
+    block =
+      case mexpr of
+        Nothing ->
+          Block bpos ss
+        Just expr ->
+          -- TODO check illegal use of 'name' in 'expr'
+          Block bpos $
+            Assign pos name expr : ss
+
+  pure $
+    Declare pos typ name block
+
+pAssign :: RiverParser (Statement Delta)
+pAssign = do
+  pos <- position
+  name <- pIdentifier
+  apos <- position
+  aop <- pAssignOp
+  expr <- pExpression
+  _ <- semi
+
+  case aop of
+    Nothing ->
+      pure $
+        Assign pos name expr
+    Just bop ->
+      pure $
+        Assign pos name $
+        Binary apos bop (Variable pos name) expr
 
 pIf :: RiverParser (Statement Delta)
 pIf =
   let
     elseopt =
-      pReserved "else" *> pStatements
+      pReserved "else" *> pBlock
   in
     If
       <$> position
       <*> (pReserved "if" *> parens pExpression)
-      <*> pStatements
-      <*> (elseopt <|> pure [])
+      <*> pBlock
+      <*> (elseopt <|> pEmptyBlock)
 
 pAssignOp :: RiverParser (Maybe BinaryOp)
 pAssignOp =

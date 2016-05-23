@@ -20,9 +20,14 @@ import           River.Source.Syntax
 
 coreOfProgram :: Program a -> Core.Program Core.Prim (Name Text) (Maybe a)
 coreOfProgram = \case
-  Program a ss ->
+  Program a b ->
     runFresh $
-      renameProgram =<< Core.Program (Just a) <$> coreOfStatements ss
+      renameProgram =<< Core.Program (Just a) <$> coreOfBlock b
+
+coreOfBlock :: Block a -> Fresh (Core.Term Core.Prim (Name Text) (Maybe a))
+coreOfBlock = \case
+  Block _ ss ->
+    coreOfStatements ss
 
 coreOfStatements :: [Statement a] -> Fresh (Core.Term Core.Prim (Name Text) (Maybe a))
 coreOfStatements = \case
@@ -31,31 +36,11 @@ coreOfStatements = \case
       Core.Return Nothing $
       Core.Copy Nothing []
 
-  Declaration _ _ _ Nothing : ss ->
-    coreOfStatements ss
+  Declare _ _ _ b : _ss ->
+    coreOfBlock b
 
-  Declaration _ _ (Identifier n) (Just x) : ss -> do
+  Assign _ (Identifier n) x : ss -> do
     term_let <- coreOfExpression (Name n) x
-    term_ss <- coreOfStatements ss
-
-    pure $
-      term_let
-      term_ss
-
-  Assignment _ (Identifier n) Nothing x : ss -> do
-    term_let <- coreOfExpression (Name n) x
-    term_ss <- coreOfStatements ss
-
-    pure $
-      term_let
-      term_ss
-
-  Assignment a i@(Identifier n) (Just op) x : ss -> do
-    let
-      bx =
-        Binary a op (Variable a i) x
-
-    term_let <- coreOfExpression (Name n) bx
     term_ss <- coreOfStatements ss
 
     pure $
