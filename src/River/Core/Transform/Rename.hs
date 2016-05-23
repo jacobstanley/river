@@ -23,6 +23,19 @@ renameProgram = \case
 
 renameTerm :: (Ord n, FreshName n) => Set n -> Map n n -> Term p n a -> Fresh (Term p n a)
 renameTerm used0 subs0 = \case
+  Return a tl ->
+    pure . Return a $ renameTail subs0 tl
+
+  If a i0 t0 e0 -> do
+    let
+      i = renameAtom subs0 i0
+
+    t <- renameTerm used0 subs0 t0
+    e <- renameTerm used0 subs0 e0
+
+    pure $
+      If a i t e
+
   Let a ns0 tl0 tm -> do
     let
       freshenConflict n0 =
@@ -52,13 +65,16 @@ renameTerm used0 subs0 = \case
 
     Let a ns tl <$> renameTerm used subs tm
 
-  Return a tl ->
-    pure . Return a $ renameTail subs0 tl
+  LetRec a bs tm ->
+    -- TODO fucked
+    LetRec a bs <$> renameTerm used0 subs0 tm
 
 renameTail :: Ord n => Map n n -> Tail p n a -> Tail p n a
 renameTail subs = \case
   Copy a xs ->
     Copy a $ fmap (renameAtom subs) xs
+  Call a n xs ->
+    Call a n $ fmap (renameAtom subs) xs
   Prim a p xs ->
     Prim a p $ fmap (renameAtom subs) xs
 

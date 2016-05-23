@@ -8,9 +8,11 @@ module River.Source.ToCore (
   , coreOfBinaryOp
   ) where
 
+import qualified Data.Set as Set
 import           Data.Text (Text)
 
 import qualified River.Core.Primitive as Core
+import           River.Core.Scope
 import qualified River.Core.Syntax as Core
 import           River.Core.Transform.Rename
 import           River.Fresh
@@ -22,30 +24,67 @@ coreOfProgram :: Program a -> Core.Program Core.Prim (Name Text) (Maybe a)
 coreOfProgram = \case
   Program a b ->
     runFresh $
-      renameProgram =<< Core.Program (Just a) <$> coreOfBlock b
+      let
+        finish =
+          Core.Copy Nothing []
+      in
+        renameProgram =<< Core.Program (Just a) <$> coreOfBlock finish b
 
-coreOfBlock :: Block a -> Fresh (Core.Term Core.Prim (Name Text) (Maybe a))
-coreOfBlock = \case
+coreOfBlock ::
+  Core.Tail Core.Prim (Name Text) (Maybe a) ->
+  Block a ->
+  Fresh (Core.Term Core.Prim (Name Text) (Maybe a))
+coreOfBlock finish = \case
   Block _ ss ->
-    coreOfStatements ss
+    coreOfStatements finish ss
 
-coreOfStatements :: [Statement a] -> Fresh (Core.Term Core.Prim (Name Text) (Maybe a))
-coreOfStatements = \case
+coreOfStatements ::
+  Core.Tail Core.Prim (Name Text) (Maybe a) ->
+  [Statement a] ->
+  Fresh (Core.Term Core.Prim (Name Text) (Maybe a))
+coreOfStatements finish = \case
   [] ->
     pure $
-      Core.Return Nothing $
-      Core.Copy Nothing []
+      Core.Return Nothing finish
 
   Declare _ _ _ b : _ss ->
-    coreOfBlock b
+    coreOfBlock finish b
 
   Assign _ (Identifier n) x : ss -> do
     term_let <- coreOfExpression (Name n) x
-    term_ss <- coreOfStatements ss
+    term_ss <- coreOfStatements finish ss
 
     pure $
       term_let
       term_ss
+
+  If a i t e : ss -> do
+    rest <- newFresh
+    term_ss <- coreOfStatements finish ss
+
+    let
+      free =
+        Set.toList $ freeOfTerm term_ss
+
+      bindings =
+        Core.Bindings Nothing
+        [(rest, Core.Lambda Nothing free term_ss)]
+
+      call =
+        Core.Call Nothing rest $
+        fmap (Core.Variable Nothing) free
+
+    n <- newFresh
+    term_let_if <- coreOfExpression n i
+    term_then <- coreOfBlock call t
+    term_else <- coreOfBlock call e
+
+    pure $
+      Core.LetRec Nothing bindings $
+      term_let_if $
+      Core.If (Just a) (Core.Variable (Just a) n)
+        term_then
+        term_else
 
   Return a x : _ss -> do
     n <- newFresh
@@ -60,7 +99,8 @@ coreOfExpression ::
   Name Text ->
   Expression a ->
   Fresh
-    (Core.Term Core.Prim (Name Text) (Maybe a) -> Core.Term Core.Prim (Name Text) (Maybe a))
+    (Core.Term Core.Prim (Name Text) (Maybe a) ->
+     Core.Term Core.Prim (Name Text) (Maybe a))
 coreOfExpression dst = \case
   Literal a (LiteralInt x) ->
     pure $

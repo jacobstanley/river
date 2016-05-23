@@ -41,4 +41,4 @@ return []
 tests :: IO Bool
 tests =
   $forAllProperties $
-    quickCheckWithResult stdArgs { maxSuccess = 1000 }
+    quickCheckWithResult stdArgs { maxSuccess = 100 }

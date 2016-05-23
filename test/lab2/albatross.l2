@@ -1,13 +1,13 @@
 int main() {
     int x;
-    if (10 > 11) {
+    if (10) {
         x = 4;
     } else {
-        if (20 * 2 > 10) {
+        if (20 * 2) {
             x = 2;
         } else {
             x = 1;
         }
     }
-    return x;
+    return x + 1337;
 }

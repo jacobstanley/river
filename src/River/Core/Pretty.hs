@@ -30,7 +30,7 @@ import           System.Console.ANSI (SGR(..), setSGRCode)
 
 import           Text.PrettyPrint.Annotated.Leijen (Doc)
 import           Text.PrettyPrint.Annotated.Leijen ((<+>), (<$$>), (<>))
-import           Text.PrettyPrint.Annotated.Leijen (annotate, hcat, indent)
+import           Text.PrettyPrint.Annotated.Leijen (annotate, hcat, vcat, indent)
 import           Text.PrettyPrint.Annotated.Leijen (space, comma, punctuate)
 import           Text.PrettyPrint.Annotated.Leijen (text, int, integer)
 import qualified Text.PrettyPrint.Annotated.Leijen as Pretty
@@ -42,6 +42,8 @@ data OutputAnnot =
   | AnnPrimitive
   | AnnUsage
   | AnnDefinition
+  | AnnFunction
+  | AnnCall
   | AnnOperator
   | AnnKeyword
   | AnnColor
@@ -80,6 +82,10 @@ displayDoc =
         setSGRCode [SetColor Foreground Dull Green]
       AnnDefinition ->
         setSGRCode [SetColor Foreground Dull Magenta]
+      AnnFunction ->
+        setSGRCode [SetColor Foreground Vivid Magenta]
+      AnnCall ->
+        setSGRCode [SetColor Foreground Vivid Green]
       AnnOperator ->
         setSGRCode [SetColor Foreground Dull Yellow]
       AnnKeyword ->
@@ -95,16 +101,41 @@ displayDoc =
 ppProgram :: (p -> Doc OutputAnnot) -> (n -> Doc OutputAnnot) -> Program p n a -> Doc OutputAnnot
 ppProgram ppP ppN = \case
   Program _ tm ->
-    ppKeyword "letrec" <+> annotate AnnDefinition "main" <+> ppEquals <$$>
+    ppKeyword "letrec" <+> annotate AnnFunction "main" <+> ppEquals <$$>
     indent 2 (ppTerm ppP ppN tm)
 
 ppTerm :: (p -> Doc OutputAnnot) -> (n -> Doc OutputAnnot) -> Term p n a -> Doc OutputAnnot
 ppTerm ppP ppN = \case
+  Return _ tl ->
+    ppKeyword "return" <+> ppTail ppP ppN tl
+
+  If _ i t e ->
+    vcat [
+        ppKeyword "if" <+> ppAtom ppN i <+> ppKeyword "then"
+      , indent 2 $ ppTerm ppP ppN t
+      , ppKeyword "else"
+      , indent 2 $ ppTerm ppP ppN e
+      ]
+
   Let _ ns tl tm ->
     ppCommaSep (map (annotate AnnDefinition . ppN) ns) <+> ppEquals <+> ppTail ppP ppN tl <$$>
     ppTerm ppP ppN tm
-  Return _ tl ->
-    ppKeyword "return" <+> ppTail ppP ppN tl
+
+  LetRec _ (Bindings _ bs) tm ->
+    vcat [
+        ppKeyword "letrec"
+      , indent 2 . vcat $ fmap (uncurry $ ppBinding ppP ppN) bs
+      , ppKeyword "in"
+      , indent 2 $ ppTerm ppP ppN tm
+      ]
+
+ppBinding :: (p -> Doc OutputAnnot) -> (n -> Doc OutputAnnot) -> n -> Binding p n a -> Doc OutputAnnot
+ppBinding ppP ppN n = \case
+  Lambda _ ns tm ->
+    annotate AnnFunction (ppN n) <+>
+    ppCommaSep (map (annotate AnnDefinition . ppN) ns) <+>
+    ppEquals <$$>
+    indent 2 (ppTerm ppP ppN tm)
 
 ppTail :: (p -> Doc OutputAnnot) -> (n -> Doc OutputAnnot) -> Tail p n a -> Doc OutputAnnot
 ppTail ppP ppN = \case
@@ -112,6 +143,10 @@ ppTail ppP ppN = \case
     ppUnit
   Copy _ as ->
     ppCommaSep (map (ppAtom ppN) as)
+  Call _ n [] ->
+    annotate AnnCall (ppN n) <+> ppUnit
+  Call _ n as ->
+    annotate AnnCall (ppN n) <+> ppCommaSep (map (ppAtom ppN) as)
   Prim _ prim [] ->
     annotate AnnPrimitive (ppP prim) <+> ppUnit
   Prim _ prim as ->

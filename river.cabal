@@ -51,7 +51,6 @@ library
 
                     River.Compile
 
-                    River.Core.Analysis.Bindings
                     River.Core.Analysis.Interference
                     River.Core.Analysis.Simplicial
                     River.Core.Annotation
