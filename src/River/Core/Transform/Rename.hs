@@ -6,6 +6,8 @@ module River.Core.Transform.Rename (
   , renameTerm
   ) where
 
+import           Control.Monad.Trans.State.Strict (StateT, evalStateT, get, put)
+
 import           Data.Either (lefts)
 import           Data.Map (Map)
 import qualified Data.Map as Map
@@ -16,13 +18,14 @@ import           River.Core.Syntax
 import           River.Fresh
 
 
-renameProgram :: (Ord n, FreshName n) => Program p n a -> Fresh (Program p n a)
+renameProgram :: (Ord n, FreshName n, MonadFresh m) => Program p n a -> m (Program p n a)
 renameProgram = \case
   Program a tm ->
-    Program a <$> renameTerm Set.empty Map.empty tm
+    flip evalStateT Set.empty $
+      Program a <$> renameTerm Map.empty tm
 
-renameTerm :: (Ord n, FreshName n) => Set n -> Map n n -> Term p n a -> Fresh (Term p n a)
-renameTerm used0 subs0 = \case
+renameTerm :: (Ord n, FreshName n, MonadFresh m) => Map n n -> Term p n a -> StateT (Set n) m (Term p n a)
+renameTerm subs0 = \case
   Return a tl ->
     pure . Return a $ renameTail subs0 tl
 
@@ -30,44 +33,44 @@ renameTerm used0 subs0 = \case
     let
       i = renameAtom subs0 i0
 
-    t <- renameTerm used0 subs0 t0
-    e <- renameTerm used0 subs0 e0
+    t <- renameTerm subs0 t0
+    e <- renameTerm subs0 e0
 
     pure $
       If a i t e
 
   Let a ns0 tl0 tm -> do
     let
-      freshenConflict n0 =
-        if Set.member n0 used0 then do
-          n <- freshen n0
-          pure $ Left (n0, n)
-        else
-          pure $ Right n0
-
-    conflicts <- traverse freshenConflict ns0
-
-    let
-      ns =
-        fmap (either snd id) conflicts
-
       tl =
         renameTail subs0 tl0
+    (subs, ns) <- renameNames subs0 ns0
+    Let a ns tl <$> renameTerm subs tm
 
-      subs1 =
-        Map.fromList $ lefts conflicts
+  LetRec a bs0 tm -> do
+    (subs, bs) <- renameBindings subs0 bs0
+    LetRec a bs <$> renameTerm subs tm
 
-      subs =
-        subs1 `Map.union` subs0
+renameBindings :: (Ord n, FreshName n, MonadFresh m) => Map n n -> Bindings p n a -> StateT (Set n) m (Map n n, Bindings p n a)
+renameBindings subs0 = \case
+  Bindings a nbs0 -> do
+    let
+      (ns0, bs0) =
+        unzip nbs0
 
-      used =
-        Set.fromList ns `Set.union` used0
+    (subs, ns) <- renameNames subs0 ns0
+    bs <- traverse (renameBinding subs) bs0
 
-    Let a ns tl <$> renameTerm used subs tm
+    let
+      nbs =
+        zip ns bs
 
-  LetRec a bs tm ->
-    -- TODO fucked
-    LetRec a bs <$> renameTerm used0 subs0 tm
+    pure (subs, Bindings a nbs)
+
+renameBinding :: (Ord n, FreshName n, MonadFresh m) => Map n n -> Binding p n a -> StateT (Set n) m (Binding p n a)
+renameBinding subs0 = \case
+  Lambda a ns0 tm -> do
+    (subs, ns) <- renameNames subs0 ns0
+    Lambda a ns <$> renameTerm subs tm
 
 renameTail :: Ord n => Map n n -> Tail p n a -> Tail p n a
 renameTail subs = \case
@@ -88,3 +91,32 @@ renameAtom subs = \case
         Variable a n0
       Just n ->
         Variable a n
+
+renameNames :: (Ord n, FreshName n, MonadFresh m) => Map n n -> [n] -> StateT (Set n) m (Map n n, [n])
+renameNames subs0 ns0 = do
+    used0 <- get
+    conflicts <- traverse (freshenConflict used0) ns0
+
+    let
+      ns =
+        fmap (either snd id) conflicts
+
+      subs1 =
+        Map.fromList $ lefts conflicts
+
+      subs =
+        subs1 `Map.union` subs0
+
+      used =
+        Set.fromList ns `Set.union` used0
+
+    put used
+    pure (subs, ns)
+
+freshenConflict :: (Ord n, FreshName n, MonadFresh m) => Set n -> n -> m (Either (n, n) n)
+freshenConflict used n0 =
+  if Set.member n0 used then do
+    n <- freshen n0
+    pure $ Left (n0, n)
+  else
+    pure $ Right n0
