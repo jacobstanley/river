@@ -10,7 +10,6 @@ module River.Core.Color (
   , precoloredOfProgram
 
   , colorsOfProgram
-  , bcolorsOfProgram
 
   , ColorError(..)
   ) where
@@ -18,7 +17,6 @@ module River.Core.Color (
 import           Control.Monad (foldM)
 
 import           Data.Bifunctor (first)
-import           Data.Bitraversable (bitraverse)
 import           Data.Map.Strict (Map)
 import qualified Data.Map.Strict as Map
 import           Data.Set (Set)
@@ -26,9 +24,7 @@ import qualified Data.Set as Set
 import           Data.Void (Void)
 
 import           River.Core.Analysis.Interference
-import           River.Core.Annotation
 import           River.Core.Fresh
-import           River.Core.Scope
 import           River.Core.Syntax
 import           River.Fresh
 import           River.Map
@@ -37,7 +33,6 @@ import           River.Map
 
 data ColorError e n =
     MissingFromInterference !n
-  | MissingFromColorMap !n
   | MissingFromBindings !n
   | StrategyError !e
     deriving (Eq, Ord, Show)
@@ -71,17 +66,17 @@ coloredOfProgram ::
   FreshName n =>
   ColorStrategy e c p n a ->
   Program p n a ->
-  Either (ColorError e n) (Program p (n, c) a)
+  Either (ColorError e n) (Program p (n, Maybe c) a)
 coloredOfProgram strategy p0 = do
   let
     lookupName colors n =
       case Map.lookup n colors of
         Nothing ->
-          Left $ MissingFromColorMap n
+          (n, Nothing)
         Just x ->
-          Right (n, x)
+          (n, Just x)
   (colors, p) <- colorsOfProgram strategy p0
-  bitraverse (lookupName colors) pure p
+  pure $ first (lookupName colors) p
 
 -- | Rename variables to their potentially pre-colored names.
 precoloredOfProgram ::
@@ -181,68 +176,25 @@ orderingOfProgram = \case
 
 orderingOfTerm :: Term p n a -> [n]
 orderingOfTerm = \case
-  Let _ ns _ tm ->
-    ns ++ orderingOfTerm tm
   Return _ _ ->
     []
+  If _ _ t e ->
+    orderingOfTerm t ++
+    orderingOfTerm e
+  Let _ ns _ tm ->
+    ns ++
+    orderingOfTerm tm
+  LetRec _ bs tm ->
+    orderingOfBindings bs ++
+    orderingOfTerm tm
 
-------------------------------------------------------------------------
+orderingOfBindings :: Bindings p n a -> [n]
+orderingOfBindings = \case
+  Bindings _ bs ->
+    concatMap (orderingOfBinding . snd) bs
 
--- | Find the optimal K-coloring for the variables in a program.
---
---   Post-order traversal method.
---
---   This doesn't seem to work when we need precolored nodes.
---
-bcolorsOfProgram ::
-  Ord c =>
-  Ord n =>
-  FreshName n =>
-  ColorStrategy e c p n a ->
-  Program p n a ->
-  Either (ColorError e n) (Map n c, Program p n a)
-bcolorsOfProgram strategy p0 = do
-  case runFreshFrom (nextOfProgram p0) $ precolored strategy p0 of
-    (colors0, p@(Program _ tm)) -> do
-      colors <- bcolorsOfTerm strategy colors0 (annotFreeOfTerm tm)
-      pure (colors, p)
-
-bcolorsOfTerm ::
-  forall e c p n a.
-  Ord c =>
-  Ord n =>
-  ColorStrategy e c p n a ->
-  Map n c ->
-  Term p n (Free n a) ->
-  Either (ColorError e n) (Map n c)
-bcolorsOfTerm strategy colored0 = \case
-  Let (Free _ _) ns0 _ tm -> do
-    let
-      bound =
-        Set.fromList ns0
-
-      needColor =
-        Set.toList $
-        bound `Set.difference` Map.keysSet colored0
-
-      free_tm =
-        freeVars $ annotOfTerm tm
-
-      required =
-        bound `Set.union` free_tm
-
-      go :: Map n c -> n -> Either (ColorError e n) (Map n c)
-      go colors n = do
-        let
-          used =
-            Set.fromList . Map.elems $
-            colors `mapIntersectionSet` required
-
-        color <- first StrategyError $ unusedColor strategy n used
-        pure $ Map.insert n color colors
-
-    colored <- foldM go colored0 needColor
-    bcolorsOfTerm strategy colored tm
-
-  Return _ _ ->
-    pure colored0
+orderingOfBinding :: Binding p n a -> [n]
+orderingOfBinding = \case
+  Lambda _ ns tm ->
+    ns ++
+    orderingOfTerm tm

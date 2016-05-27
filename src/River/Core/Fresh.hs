@@ -19,17 +19,45 @@ nextOfProgram = \case
 
 nextOfTerm :: FreshName n => Term p n a -> Int
 nextOfTerm = \case
+  Return _ tl ->
+    nextOfTail tl
+  If _ i t e ->
+    nextOfAtom i `max`
+    nextOfTerm t `max`
+    nextOfTerm e
   Let _ ns tl tm ->
     foldl' max 0 $
       nextOfTail tl :
       nextOfTerm tm :
       fmap nextName ns
-  Return _ tl ->
-    nextOfTail tl
+  LetRec _ bs tm ->
+    nextOfBindings bs `max`
+    nextOfTerm tm
+
+nextOfBindings :: FreshName n => Bindings p n a -> Int
+nextOfBindings = \case
+  Bindings _ bs ->
+    let
+      go acc (n, b) =
+        acc `max`
+        nextName n `max`
+        nextOfBinding b
+    in
+      foldl' go 0 bs
+
+nextOfBinding :: FreshName n => Binding p n a -> Int
+nextOfBinding = \case
+  Lambda _ ns tm ->
+    foldl' max 0 $
+      nextOfTerm tm :
+      fmap nextName ns
 
 nextOfTail :: FreshName n => Tail p n a -> Int
 nextOfTail = \case
   Copy _ xs ->
+    foldl' max 0 $
+      fmap nextOfAtom xs
+  Call _ _ xs ->
     foldl' max 0 $
       fmap nextOfAtom xs
   Prim _ _ xs ->

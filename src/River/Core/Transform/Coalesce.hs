@@ -11,6 +11,7 @@ import           Data.Map (Map)
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 
+import           River.Bifunctor
 import           River.Core.Annotation
 import           River.Core.Scope
 import           River.Core.Syntax
@@ -121,3 +122,32 @@ coalesceTerm env0 tm0 =
 
       Return a tl ->
         Return a tl
+
+      If a i t e ->
+        If a i
+          (coalesceTerm env0 t)
+          (coalesceTerm env0 e)
+
+      LetRec a bs tm ->
+        LetRec a
+          (coalesceBindings env0 bs)
+          (coalesceTerm env0 tm)
+
+coalesceBindings ::
+  Ord n =>
+  Map n (Atom n (Free n a)) ->
+  Bindings p n (Free n a) ->
+  Bindings p n (Free n a)
+coalesceBindings env = \case
+  Bindings a bs ->
+    Bindings a $ fmap (second (coalesceBinding env)) bs
+
+coalesceBinding ::
+  Ord n =>
+  Map n (Atom n (Free n a)) ->
+  Binding p n (Free n a) ->
+  Binding p n (Free n a)
+coalesceBinding env = \case
+  -- TODO dead parameter removal, probably a separate pass
+  Lambda a ns tm ->
+    Lambda a ns (coalesceTerm env tm)

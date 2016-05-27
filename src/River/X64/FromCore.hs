@@ -15,10 +15,11 @@ import           River.Core.Fresh
 import qualified River.Core.Primitive as Core
 import           River.Core.Syntax
 import           River.Core.Transform.Coalesce
+import           River.Core.Transform.Else
 import           River.Fresh
-import           River.Name
 import           River.X64.Assimilate
 import           River.X64.Color
+import           River.X64.Name as X64
 import qualified River.X64.Primitive as X64
 import           River.X64.Syntax
 
@@ -26,48 +27,142 @@ import           River.X64.Syntax
 data X64Error n a =
     AssimilateError !(AssimilateError n a)
   | RegisterAllocationError !(ColorError (RegisterError n) n)
-  | CopyArityMismatch ![Operand64] !(Tail X64.Prim Register64 a)
+  | CopyArityMismatch ![Operand64] !(Tail X64.Prim X64.Name a)
   | AssemblyInvalidPrim !X64.Prim ![Operand64] ![Operand64]
+  | LabelCannotBeAtom !a !Label
+  | CannotLetBindLabel !a !Label
+  | MalformedIf !a !(Atom X64.Name a) !(Term X64.Prim X64.Name a) !(Term X64.Prim X64.Name a)
+  | MalformedBinding !a !X64.Name !(Binding X64.Prim X64.Name a)
+  | CallNotSupportedYet !a !Label ![Atom X64.Name a]
+  | CannotCallRegister !a !Register64 ![Atom X64.Name a]
     deriving (Eq, Ord, Show, Functor)
 
 ------------------------------------------------------------------------
 
 assemblyOfProgram ::
   Ord n =>
-  Program Core.Prim (Name n) a ->
-  Either (X64Error (Name n) a) [Instruction]
-assemblyOfProgram p0 = do
+  FreshName n =>
+  (n -> Label) ->
+  Program Core.Prim n a ->
+  Either (X64Error n a) [Instruction]
+assemblyOfProgram mkLabel p0 = do
   let
-    runFreshN =
-      runFreshFrom $ nextOfProgram p0
-  p1 <- first AssimilateError . runFreshN . runExceptT $ assimilateProgram p0
-  p2 <- first RegisterAllocationError $ coloredOfProgram colorByRegister p1
-  case coalesceProgram $ first snd p2 of
+    runFreshN p =
+      runFreshFrom $ nextOfProgram p
+
+  p1 <-
+    first AssimilateError . runFreshN p0 . runExceptT $
+      elseOfProgram =<< assimilateProgram p0
+
+  p2 <-
+    first RegisterAllocationError $
+      coloredOfProgram colorByRegister p1
+
+  let
+    p3 =
+      coalesceProgram $ first (fromColored mkLabel) p2
+
+  case p3 of
     Program _ tm ->
       assemblyOfTerm tm
 
-assemblyOfTerm :: Term X64.Prim Register64 a -> Either (X64Error n a) [Instruction]
+fromColored :: (n -> Label) -> (n, Maybe Register64) -> X64.Name
+fromColored f (n, mr) =
+  case mr of
+    Nothing ->
+      L $ f n
+    Just r ->
+      R r
+
+assemblyOfTerm :: Term X64.Prim X64.Name a -> Either (X64Error n a) [Instruction]
 assemblyOfTerm = \case
-  Let _ ns tl tm ->
-    (++) <$> assemblyOfTail (fmap Register64 ns) tl <*> assemblyOfTerm tm
-  Return _ (Copy _ [Variable _ RAX]) ->
-    pure [Ret]
+  Return _ (Copy _ [Variable _ (R RAX)]) ->
+    pure [ Ret ]
+
+  -- TODO Ensure calls are in Grail Normal Form (GNF) so we don't need to do
+  -- TODO any extra moves at this time.
+  Return _ (Call _ (L n) _) ->
+    pure [ Jmp n ]
+
   Return _ tl ->
-    (++) <$> assemblyOfTail [Register64 RAX] tl <*> pure [Ret]
+    (++)
+      <$> assemblyOfTail [Register64 RAX] tl
+      <*> pure [ Ret ]
+
+  If _ (Variable _ (R i)) t (Return _ (Call _ (L e) [])) ->
+    let
+      preamble =
+        [ Test (Register64 i) (Register64 i)
+        , Jz e ]
+    in
+      (preamble ++) <$> assemblyOfTerm t
+
+  If a i t e ->
+    Left $ MalformedIf a i t e
+
+  Let a ns tl tm -> do
+    ops <- operandsOfNames a ns
+    (++)
+      <$> assemblyOfTail ops tl
+      <*> assemblyOfTerm tm
+
+  LetRec _ bs tm ->
+    (++)
+      <$> assemblyOfTerm tm
+      <*> assemblyOfBindings bs
+
+assemblyOfBindings :: Bindings X64.Prim X64.Name a -> Either (X64Error n a) [Instruction]
+assemblyOfBindings = \case
+  Bindings a nbs ->
+    let
+      go = \case
+        (L n, b) ->
+          fmap ([ Lbl n ] ++) (assemblyOfBinding b)
+
+        (n, b) ->
+          Left $ MalformedBinding a n b
+    in
+      concat <$> traverse go nbs
+
+assemblyOfBinding :: Binding X64.Prim X64.Name a -> Either (X64Error n a) [Instruction]
+assemblyOfBinding = \case
+  Lambda _ _ tm ->
+    assemblyOfTerm tm
+
+operandsOfNames :: a -> [X64.Name] -> Either (X64Error n a) [Operand64]
+operandsOfNames a ns =
+  let
+    go = \case
+      L l ->
+        Left $ CannotLetBindLabel a l
+      R r ->
+        Right $ Register64 r
+  in
+    traverse go ns
 
 assemblyOfTail ::
   [Operand64] ->
-  Tail X64.Prim Register64 a ->
+  Tail X64.Prim X64.Name a ->
   Either (X64Error n a) [Instruction]
 assemblyOfTail dsts tl =
   case tl of
-    Copy _ xs
-      | length dsts == length xs ->
-        pure $ zipWith Movq (fmap operandOfAtom xs) dsts
+    Copy _ xs0
+      | length dsts == length xs0 -> do
+        xs <- traverse operandOfAtom xs0
+        pure $ zipWith Movq xs dsts
       | otherwise ->
         Left $ CopyArityMismatch dsts tl
-    Prim _ prim xs ->
-      assemblyOfPrim prim (fmap operandOfAtom xs) dsts
+
+    Call a (L n) xs ->
+      -- TODO only tail calls are supports, which is handled in assemblyOfTerm
+      Left $ CallNotSupportedYet a n xs
+
+    Call a (R n) xs ->
+      Left $ CannotCallRegister a n xs
+
+    Prim _ prim xs0 -> do
+      xs <- traverse operandOfAtom xs0
+      assemblyOfPrim prim xs dsts
 
 data Commutative =
     Commutative
@@ -126,9 +221,11 @@ assemblyOfPrim prim xs dsts =
         Left $ AssemblyInvalidPrim prim xs dsts
 
 
-operandOfAtom :: Atom Register64 a -> Operand64
+operandOfAtom :: Atom X64.Name a -> Either (X64Error n a) Operand64
 operandOfAtom = \case
   Immediate _ x ->
-    Immediate64 $ fromInteger x
-  Variable _ x ->
-    Register64 x
+    pure . Immediate64 $ fromInteger x
+  Variable _ (R x) ->
+    pure $ Register64 x
+  Variable a (L x) ->
+    Left $ LabelCannotBeAtom a x

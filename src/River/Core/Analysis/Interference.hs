@@ -72,33 +72,44 @@ interferenceOfTerm =
   interferenceOfAnnotTerm . annotFreeOfTerm
 
 interferenceOfAnnotTerm :: Ord n => Term p n (Free n a) -> InterferenceGraph n
-interferenceOfAnnotTerm xx =
-  let
-    freeOfAnnotTerm =
-      freeVars . annotOfTerm
+interferenceOfAnnotTerm = \case
+ Return a _ ->
+   fromNeighboring (freeVars a)
+ If a _ t e ->
+   fromNeighboring (freeVars a) <>
+   interferenceOfAnnotTerm t <>
+   interferenceOfAnnotTerm e
+ Let a ns _ tm ->
+   -- when there are no dead bindings then:
+   --
+   --   freeOfAnnotTerm tm = freeOfAnnotTerm tm <> Set.fromList ns
+   --
+   fromNeighboring (freeVars a) <>
+   fromNeighboring (freeOfAnnotTerm tm <> Set.fromList ns) <>
+   interferenceOfAnnotTerm tm
+ LetRec a bs tm ->
+   fromNeighboring (freeVars a) <>
+   interferenceOfAnnotBindings bs <>
+   interferenceOfAnnotTerm tm
 
-    termInterference =
-      fromNeighboring $ freeOfAnnotTerm xx
+interferenceOfAnnotBindings :: Ord n => Bindings p n (Free n a) -> InterferenceGraph n
+interferenceOfAnnotBindings = \case
+  Bindings a bs ->
+    fromNeighboring (freeVars a) <>
+    -- Function names can't interfere as they are labels rather than registers.
+    -- Maybe they should have a different name type?
+    mconcat (fmap (interferenceOfAnnotBinding . snd) bs)
 
-    boundInterference ns tm =
-      let
-        -- when there are no dead bindings then:
-        --
-        --   freeOfAnnotTerm tm = freeOfAnnotTerm tm <> Set.fromList ns
-        --
-        ftm =
-          freeOfAnnotTerm tm <>
-          Set.fromList ns
-      in
-        fromNeighboring ftm
-  in
-    case xx of
-      Let _ ns _ tm ->
-        termInterference <>
-        boundInterference ns tm <>
-        interferenceOfAnnotTerm tm
-      Return _ _ ->
-        termInterference
+interferenceOfAnnotBinding :: Ord n => Binding p n (Free n a) -> InterferenceGraph n
+interferenceOfAnnotBinding = \case
+  Lambda a ns tm ->
+    fromNeighboring (freeVars a) <>
+    fromNeighboring (freeOfAnnotTerm tm <> Set.fromList ns) <>
+    interferenceOfAnnotTerm tm
+
+freeOfAnnotTerm :: Term p n (Free n a) -> Set n
+freeOfAnnotTerm =
+  freeVars . annotOfTerm
 
 ------------------------------------------------------------------------
 
@@ -132,10 +143,10 @@ ppInterferenceGraph ppName g =
     column label rows =
       let
         header =
-          Box.alignHoriz Box.center1 (Box.cols rows) (Box.text label)
+          Box.alignHoriz Box.center1 (length label `max` Box.cols rows) (Box.text label)
 
         divider =
-          Box.text (replicate (Box.cols header `max` Box.cols rows) '=')
+          Box.text (replicate (length label `max` Box.cols rows) '=')
       in
         header // divider // rows
   in

@@ -8,6 +8,8 @@ module River.X64.Color (
   , RegisterError(..)
   ) where
 
+import           Control.Monad.Trans.State.Strict (StateT, runStateT, get, put)
+
 import           Data.Function (on)
 import qualified Data.List as List
 import           Data.Map (Map)
@@ -46,34 +48,48 @@ precoloredOfProgram ::
   Program Prim n a ->
   Fresh (Map n Register64, Program Prim n a)
 precoloredOfProgram = \case
-  Program a tm ->
-    (fmap . fmap) (Program a) (precoloredOfTerm tm)
+  Program a tm0 -> do
+    (tm, rs) <- runStateT (precoloredOfTerm tm0) Map.empty
+    pure (rs, Program a tm)
+
+putsert :: (Ord k, Monad m) => k -> v -> StateT (Map k v) m ()
+putsert k v = do
+  kvs <- get
+  put $ Map.insert k v kvs
 
 precoloredOfTerm ::
   Ord n =>
   FreshName n =>
   Term Prim n a ->
-  Fresh (Map n Register64, Term Prim n a)
+  StateT (Map n Register64) Fresh (Term Prim n a)
 precoloredOfTerm = \case
-  -- TODO Should probably add extra let bindings for mul/div so that rax/rdx
-  -- TODO are free for use again.
+  -- TODO ensure in RAX
+  Return at tl ->
+    pure $
+      Return at tl
+
+  If at i t0 e0 ->
+    If at i
+      <$> precoloredOfTerm t0
+      <*> precoloredOfTerm e0
+
+  LetRec at bs tm -> do
+    LetRec at
+      <$> precoloredOfBindings bs
+      <*> precoloredOfTerm tm
 
   Let at [lo, hi] (Prim ap Imul [Variable ax x, y]) tm0 -> do
-    (colors0, tm) <- precoloredOfTerm tm0
+    tm <- precoloredOfTerm tm0
 
     x_rax <- freshen x
     lo_rax <- freshen lo
     hi_rdx <- freshen hi
 
-    let
-      colors =
-        Map.unions
-          [ Map.singleton x_rax RAX
-          , Map.singleton lo_rax RAX
-          , Map.singleton hi_rdx RDX
-          , colors0 ]
+    putsert x_rax RAX
+    putsert lo_rax RAX
+    putsert hi_rdx RDX
 
-    pure . (colors,) $
+    pure $
       Let ap [x_rax]          (Copy ap [Variable ax x]) $
       Let at [lo_rax, hi_rdx] (Prim ap Imul [Variable ax x_rax, y]) $
       Let at [lo]             (Copy at [Variable at lo_rax]) $
@@ -81,23 +97,19 @@ precoloredOfTerm = \case
       tm
 
   Let at [dv, md] (Prim ap Idiv [Variable al lo, Variable ah hi, x]) tm0 -> do
-    (colors0, tm) <- precoloredOfTerm tm0
+    tm <- precoloredOfTerm tm0
 
     lo_rax <- freshen lo
     hi_rdx <- freshen hi
     dv_rax <- freshen dv
     md_rdx <- freshen md
 
-    let
-      colors =
-        Map.unions
-          [ Map.singleton lo_rax RAX
-          , Map.singleton hi_rdx RDX
-          , Map.singleton dv_rax RAX
-          , Map.singleton md_rdx RDX
-          , colors0 ]
+    putsert lo_rax RAX
+    putsert hi_rdx RDX
+    putsert dv_rax RAX
+    putsert md_rdx RDX
 
-    pure . (colors,) $
+    pure $
       Let ap [lo_rax]         (Copy ap [Variable al lo]) $
       Let ap [hi_rdx]         (Copy ap [Variable ah hi]) $
       Let at [dv_rax, md_rdx] (Prim ap Idiv [Variable al lo_rax, Variable ah hi_rdx, x]) $
@@ -106,30 +118,47 @@ precoloredOfTerm = \case
       tm
 
   Let at [hi] (Prim ap Cqto [Variable al lo]) tm0 -> do
-    (colors0, tm) <- precoloredOfTerm tm0
+    tm <- precoloredOfTerm tm0
 
     lo_rax <- freshen lo
     hi_rdx <- freshen hi
 
-    let
-      colors =
-        Map.unions
-          [ Map.singleton lo_rax RAX
-          , Map.singleton hi_rdx RDX
-          , colors0 ]
+    putsert lo_rax RAX
+    putsert hi_rdx RDX
 
-    pure . (colors,) $
+    pure $
       Let ap [lo_rax] (Copy ap [Variable al lo]) $
       Let at [hi_rdx] (Prim ap Cqto [Variable al lo_rax]) $
       Let at [hi]     (Copy at [Variable at hi_rdx]) $
       tm
 
   Let at ns tl tm ->
-    (fmap . fmap) (Let at ns tl) (precoloredOfTerm tm)
+    Let at ns tl
+      <$> precoloredOfTerm tm
 
-  -- TODO ensure in RAX
-  Return at tl ->
-    pure (Map.empty, Return at tl)
+precoloredOfBindings ::
+  Ord n =>
+  FreshName n =>
+  Bindings Prim n a ->
+  StateT (Map n Register64) Fresh (Bindings Prim n a)
+precoloredOfBindings = \case
+  Bindings a nbs0 -> do
+    let
+      (ns, bs0) =
+        unzip nbs0
+    bs <- traverse precoloredOfBinding bs0
+    pure $
+      Bindings a (zip ns bs)
+
+precoloredOfBinding ::
+  Ord n =>
+  FreshName n =>
+  Binding Prim n a ->
+  StateT (Map n Register64) Fresh (Binding Prim n a)
+precoloredOfBinding = \case
+  Lambda a ns tm -> do
+    Lambda a ns
+      <$> precoloredOfTerm tm
 
 registers :: Map Register64 Int
 registers =

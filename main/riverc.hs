@@ -16,6 +16,7 @@ import           River.Core.Evaluator
 import           River.Core.Fresh
 import qualified River.Core.Pretty as Core
 import           River.Core.Transform.Coalesce
+import           River.Core.Transform.Else
 import           River.Fresh
 import           River.Source.Check
 import           River.Source.Parser
@@ -25,6 +26,7 @@ import           River.X64.Assimilate
 import           River.X64.Color
 import           River.X64.FromCore
 import qualified River.X64.Pretty as X64
+import           River.X64.Syntax
 
 import           System.Environment (getArgs)
 
@@ -106,23 +108,34 @@ dump path = do
         core =
           coreOfProgram source
 
-        eassim =
+        e_else_assim =
           first show .
           runFreshFrom (nextOfProgram core) .
-          runExceptT $
-            assimilateProgram core
+          runExceptT $ do
+            pa <- assimilateProgram core
+            pe <- elseOfProgram pa
+            pure (pe, pa)
+
+        eelse =
+          fmap fst e_else_assim
+
+        eassim =
+          fmap snd e_else_assim
 
         eprecolored =
-          first show $ fmap (precoloredOfProgram colorByRegister) eassim
+          first show $ fmap (precoloredOfProgram colorByRegister) eelse
 
         ecolored =
-          first show . coloredOfProgram colorByRegister =<< eassim
+          first show . coloredOfProgram colorByRegister =<< eelse
 
         easm =
-          first show $ assemblyOfProgram core
+          first show $ assemblyOfProgram Label core
 
         fromE e f =
           either id f e
+
+        fromColored (n, mr) =
+          maybe (Left n) Right mr
 
       unless (null errors) $ do
         putStrLn ""
@@ -139,6 +152,12 @@ dump path = do
       putStrLn "-- Core (with x86-64 primitives) --"
       putStrLn ""
       putStrLn . fromE eassim $
+        Core.displayProgram' X64.ppPrim Core.ppName
+
+      putStrLn ""
+      putStrLn "-- Core (after else hoisting) --"
+      putStrLn ""
+      putStrLn . fromE eelse $
         Core.displayProgram' X64.ppPrim Core.ppName
 
       putStrLn ""
@@ -159,16 +178,16 @@ dump path = do
       putStrLn "-- Registers Allocated --"
       putStrLn ""
       putStrLn . fromE ecolored $
-        Core.displayProgram' X64.ppPrim X64.ppRegister64 .
-        first snd
+        Core.displayProgram' X64.ppPrim (either Core.ppName X64.ppRegister64) .
+        first fromColored
 
       putStrLn ""
       putStrLn "-- Registers Coalesced --"
       putStrLn ""
       putStrLn . fromE ecolored $
-        Core.displayProgram' X64.ppPrim X64.ppRegister64 .
+        Core.displayProgram' X64.ppPrim (either Core.ppName X64.ppRegister64) .
         coalesceProgram .
-        first snd
+        first fromColored
 
       putStrLn ""
       putStrLn "-- Assembly (x86-64) --"

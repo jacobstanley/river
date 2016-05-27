@@ -47,7 +47,7 @@ library
                   , void                            >= 0.7        && < 0.8
 
   exposed-modules:
-                    River.Bifunctor.Trans
+                    River.Bifunctor
 
                     River.Compile
 
@@ -62,8 +62,9 @@ library
                     River.Core.Primitive
                     River.Core.Scope
                     River.Core.Syntax
-                    River.Core.Transform.Rename
                     River.Core.Transform.Coalesce
+                    River.Core.Transform.Else
+                    River.Core.Transform.Rename
 
                     River.Fresh
                     River.Map
@@ -82,6 +83,7 @@ library
                     River.X64.Assimilate
                     River.X64.Color
                     River.X64.FromCore
+                    River.X64.Name
                     River.X64.Pretty
                     River.X64.Primitive
                     River.X64.Syntax

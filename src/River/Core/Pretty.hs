@@ -118,7 +118,7 @@ ppTerm ppP ppN = \case
       ]
 
   Let _ ns tl tm ->
-    ppCommaSep (map (annotate AnnDefinition . ppN) ns) <+> ppEquals <+> ppTail ppP ppN tl <$$>
+    ppNames ppN ns <+> ppEquals <+> ppTail ppP ppN tl <$$>
     ppTerm ppP ppN tm
 
   LetRec _ (Bindings _ bs) tm ->
@@ -133,9 +133,16 @@ ppBinding :: (p -> Doc OutputAnnot) -> (n -> Doc OutputAnnot) -> n -> Binding p 
 ppBinding ppP ppN n = \case
   Lambda _ ns tm ->
     annotate AnnFunction (ppN n) <+>
-    ppCommaSep (map (annotate AnnDefinition . ppN) ns) <+>
+    ppNames ppN ns <+>
     ppEquals <$$>
     indent 2 (ppTerm ppP ppN tm)
+
+ppNames :: (n -> Doc OutputAnnot) -> [n] -> Doc OutputAnnot
+ppNames ppN = \case
+  [] ->
+    ppUnit
+  ns ->
+    ppCommaSep (map (annotate AnnDefinition . ppN) ns)
 
 ppTail :: (p -> Doc OutputAnnot) -> (n -> Doc OutputAnnot) -> Tail p n a -> Doc OutputAnnot
 ppTail ppP ppN = \case

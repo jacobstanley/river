@@ -12,29 +12,48 @@ import           Data.Int (Int64)
 import           Data.Map (Map)
 import qualified Data.Map as Map
 
+import           River.Bifunctor
 import           River.Core.Primitive
 import           River.Core.Syntax
 
 data RuntimeError n a =
     DivisionByZero !a ![n] !(Tail Prim n a)
-  | LetArityMismatch !a ![n] ![Value]
+  | LetArityMismatch !a ![n] ![Value n a]
+  | LambdaArityMismatch !a ![n] ![Value n a]
   | UnboundVariable !a !n
-  | ArithError !a !Prim ![Value]
-  | DivideByZero !a !Prim ![Value]
-  | InvalidPrimApp !a !Prim ![Value]
+  | UnboundFunction !a !n
+  | ArithError !a !Prim ![Value n a]
+  | DivideByZero !a !Prim ![Value n a]
+  | InvalidPrimApp !a !Prim ![Value n a]
+  | CannotIfNonBool !a !(Value n a)
+  | CannotCallNonLambda !a !n !(Value n a) ![Value n a]
     deriving (Eq, Ord, Show, Functor)
 
-data Value =
+data Value n a =
     VInt64 !Int64
-    deriving (Eq, Ord, Show)
+  | VLambda ![n] !(Term Prim n a)
+    deriving (Eq, Ord, Show, Functor)
 
-evaluateProgram :: Ord n => Program Prim n a -> Either (RuntimeError n a) [Value]
+evaluateProgram :: Ord n => Program Prim n a -> Either (RuntimeError n a) [Value n a]
 evaluateProgram = \case
   Program _ tm ->
     evaluateTerm Map.empty tm
 
-evaluateTerm :: Ord n => Map n Value -> Term Prim n a -> Either (RuntimeError n a) [Value]
+evaluateTerm :: Ord n => Map n (Value n a) -> Term Prim n a -> Either (RuntimeError n a) [Value n a]
 evaluateTerm env0 = \case
+  Return _ tl ->
+    evaluateTail env0 tl
+
+  If a i0 t e -> do
+    i <- evaluateAtom env0 i0
+    case i of
+      VInt64 0 ->
+        evaluateTerm env0 e
+      VInt64 _ ->
+        evaluateTerm env0 t
+      _ ->
+        Left $ CannotIfNonBool a i
+
   Let a ns tl tm -> do
     vs <- evaluateTail env0 tl
     if length ns /= length vs then
@@ -46,20 +65,64 @@ evaluateTerm env0 = \case
       in
         evaluateTerm env tm
 
-  Return _ tl ->
-    evaluateTail env0 tl
+  LetRec _ (Bindings _ bs) tm ->
+    let
+      env1 =
+        Map.fromList $
+        fmap (second evaluateBinding) bs
 
-evaluateTail :: Ord n => Map n Value -> Tail Prim n a -> Either (RuntimeError n a) [Value]
+      env =
+        env1 `Map.union`
+        env0
+    in
+      evaluateTerm env tm
+
+evaluateBinding :: Binding Prim n a -> Value n a
+evaluateBinding = \case
+  Lambda _ ns tm ->
+    VLambda ns tm
+
+evaluateTail :: Ord n => Map n (Value n a) -> Tail Prim n a -> Either (RuntimeError n a) [Value n a]
 evaluateTail env = \case
   Copy _ xs ->
     traverse (evaluateAtom env) xs
+
+  Call a n xs -> do
+    vs <- traverse (evaluateAtom env) xs
+    evaluateCall env a n vs
+
   Prim a p xs ->
     evaluatePrim a p =<< traverse (evaluateAtom env) xs
 
-evaluateAtom :: Ord n => Map n Value -> Atom n a -> Either (RuntimeError n a) Value
+evaluateCall ::
+  Ord n =>
+  Map n (Value n a) ->
+  a ->
+  n ->
+  [Value n a] ->
+  Either (RuntimeError n a) [Value n a]
+evaluateCall env0 a n vs =
+  case Map.lookup n env0 of
+    Nothing ->
+      Left $ UnboundFunction a n
+    Just (VLambda ns tm) ->
+      -- TODO this is the same as a Let above, maybe extract?
+      if length ns /= length vs then
+        Left $ LambdaArityMismatch a ns vs
+      else
+        let
+          env =
+            Map.fromList (zip ns vs) `Map.union` env0
+        in
+          evaluateTerm env tm
+    Just v ->
+      Left $ CannotCallNonLambda a n v vs
+
+evaluateAtom :: Ord n => Map n (Value n a) -> Atom n a -> Either (RuntimeError n a) (Value n a)
 evaluateAtom env = \case
   Immediate _ x ->
     pure . VInt64 $ fromInteger x
+
   Variable a n ->
     case Map.lookup n env of
       Nothing ->
@@ -67,7 +130,7 @@ evaluateAtom env = \case
       Just v ->
         pure v
 
-evaluatePrim :: a -> Prim -> [Value] -> Either (RuntimeError n a) [Value]
+evaluatePrim :: a -> Prim -> [Value n a] -> Either (RuntimeError n a) [Value n a]
 evaluatePrim a p xs =
   case (p, xs) of
     (Neg, [VInt64 x]) ->

@@ -1,5 +1,6 @@
 {-# LANGUAGE DeriveFunctor #-}
 {-# LANGUAGE LambdaCase #-}
+-- | Convert from core primitives to x86-64 primitives.
 module River.X64.Assimilate (
     assimilateProgram
   , assimilateTerm
@@ -7,13 +8,12 @@ module River.X64.Assimilate (
   , AssimilateError(..)
   ) where
 
-import           Control.Monad.Trans.Class (lift)
 import           Control.Monad.Trans.Except (ExceptT, throwE)
 
+import           River.Bifunctor
 import qualified River.Core.Primitive as Core
 import           River.Core.Syntax
 import           River.Fresh
-import           River.Name
 import qualified River.X64.Primitive as X64
 
 
@@ -22,39 +22,74 @@ data AssimilateError n a =
     deriving (Eq, Ord, Show, Functor)
 
 assimilateProgram ::
-  Program Core.Prim (Name n) a ->
-  ExceptT (AssimilateError (Name n) a) Fresh (Program X64.Prim (Name n) a)
+  FreshName n =>
+  Program Core.Prim n a ->
+  ExceptT (AssimilateError n a) Fresh (Program X64.Prim n a)
 assimilateProgram = \case
   Program a tm ->
     Program a <$> assimilateTerm tm
 
 assimilateTerm ::
-  Term Core.Prim (Name n) a ->
-  ExceptT (AssimilateError (Name n) a) Fresh (Term X64.Prim (Name n) a)
+  FreshName n =>
+  Term Core.Prim n a ->
+  ExceptT (AssimilateError n a) Fresh (Term X64.Prim n a)
 assimilateTerm = \case
-  Let a ns tl tm -> do
-    let_in <- assimilateTail a ns tl
-    let_in <$> assimilateTerm tm
+  Return ar (Call ac n xs) ->
+    pure $
+      Return ar (Call ac n xs)
 
   Return a tl -> do
     -- TODO should be based on arity of tail, not just [n]
-    n <- lift newFresh
-    let_in <- assimilateTail a [n] tl
-    pure . let_in $
+    -- TODO need to do arity inference before this is possible.
+    n <- newFresh
+    let_tail <- assimilateTail a [n] tl
+    pure . let_tail $
       Return a (Copy a [Variable a n])
 
+  If a i t e -> do
+    If a i
+      <$> assimilateTerm t
+      <*> assimilateTerm e
+
+  Let a ns tl tm -> do
+    let_tail <- assimilateTail a ns tl
+    let_tail <$> assimilateTerm tm
+
+  LetRec a bs tm ->
+    LetRec a
+      <$> assimilateBindings bs
+      <*> assimilateTerm tm
+
+assimilateBindings ::
+  FreshName n =>
+  Bindings Core.Prim n a ->
+  ExceptT (AssimilateError n a) Fresh (Bindings X64.Prim n a)
+assimilateBindings = \case
+  Bindings a bs ->
+    Bindings a <$> traverse (secondA assimilateBinding) bs
+
+assimilateBinding ::
+  FreshName n =>
+  Binding Core.Prim n a ->
+  ExceptT (AssimilateError n a) Fresh (Binding X64.Prim n a)
+assimilateBinding = \case
+  Lambda a ns tm ->
+    Lambda a ns <$> assimilateTerm tm
+
 assimilateTail ::
+  FreshName n =>
   a ->
-  [Name n] ->
-  Tail Core.Prim (Name n) a ->
-  ExceptT
-    (AssimilateError (Name n) a)
-    Fresh
-    (Term X64.Prim (Name n) a -> Term X64.Prim (Name n) a)
+  [n] ->
+  Tail Core.Prim n a ->
+  ExceptT (AssimilateError n a) Fresh (Term X64.Prim n a -> Term X64.Prim n a)
 assimilateTail an ns = \case
   Copy ac xs ->
     pure $
       Let an ns (Copy ac xs)
+
+  Call ac n xs ->
+    pure $
+      Let an ns (Call ac n xs)
 
   Prim ap p0 xs -> do
     case assimilateTrivialPrim p0 of
@@ -83,26 +118,27 @@ assimilateTrivialPrim = \case
       Nothing
 
 assimilateComplexPrim ::
+  FreshName n =>
   a ->
-  [Name n] ->
+  [n] ->
   a ->
   Core.Prim ->
-  [Atom (Name n) a] ->
+  [Atom n a] ->
   ExceptT
-    (AssimilateError (Name n) a)
+    (AssimilateError n a)
     Fresh
-    (Term X64.Prim (Name n) a -> Term X64.Prim (Name n) a)
+    (Term X64.Prim n a -> Term X64.Prim n a)
 assimilateComplexPrim an ns ap p xs =
   case (ns, p, xs) of
     ([dst], Core.Mul, [x, y]) -> do
-      ignore <- lift newFresh
+      ignore <- newFresh
       pure .
         Let an [dst, ignore] $
         Prim ap X64.Imul [x, y]
 
     ([dst], Core.Div, [x, y]) -> do
-      ignore <- lift newFresh
-      high_x <- lift newFresh
+      ignore <- newFresh
+      high_x <- newFresh
       pure $
         Let ap [high_x]
           (Prim ap X64.Cqto [x]) .
@@ -110,8 +146,8 @@ assimilateComplexPrim an ns ap p xs =
           (Prim ap X64.Idiv [x, Variable ap high_x, y])
 
     ([dst], Core.Mod, [x, y]) -> do
-      ignore <- lift newFresh
-      high_x <- lift newFresh
+      ignore <- newFresh
+      high_x <- newFresh
       pure $
         Let ap [high_x]
           (Prim ap X64.Cqto [x]) .

@@ -1,16 +1,34 @@
-{-# LANGUAGE NoImplicitPrelude #-}
 {-# LANGUAGE KindSignatures #-}
-module River.Bifunctor.Trans (
-    BifunctorTrans(..)
+module River.Bifunctor (
+    Bifunctor(..)
+  , BifunctorTrans(..)
+
+  , Bitraversable(..)
+  , bimapA
+  , firstA
+  , secondA
   ) where
 
 import           Control.Monad.Trans.Except (ExceptT(..), runExceptT)
 import qualified Control.Monad.Trans.Writer.Lazy as Lazy
 import qualified Control.Monad.Trans.Writer.Strict as Strict
 
-import           Data.Either (Either(..))
-import           Data.Function ((.), id)
-import           Data.Functor (Functor(..))
+import           Data.Bifunctor (Bifunctor(..))
+import           Data.Bitraversable (Bitraversable(..))
+
+------------------------------------------------------------------------
+
+bimapA :: (Applicative f, Bitraversable t) => (a -> f c) -> (b -> f d) -> t a b -> f (t c d)
+bimapA =
+  bitraverse
+
+firstA :: (Applicative f, Bitraversable t) => (a -> f c) -> t a b -> f (t c b)
+firstA f =
+  bimapA f pure
+
+secondA :: (Applicative f, Bitraversable t) => (b -> f d) -> t a b -> f (t a d)
+secondA f =
+  bimapA pure f
 
 ------------------------------------------------------------------------
 

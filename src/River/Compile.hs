@@ -26,7 +26,7 @@ import           Data.Text (Text)
 import qualified Data.Text as T
 import qualified Data.Text.Read as T
 
-import           River.Bifunctor.Trans
+import           River.Bifunctor
 import           River.Name
 import           River.Source.Check
 import           River.Source.Parser
@@ -34,6 +34,7 @@ import           River.Source.Syntax
 import           River.Source.ToCore
 import           River.X64.FromCore
 import           River.X64.Pretty
+import           River.X64.Syntax
 
 import           System.Directory (renameFile)
 import           System.Exit (ExitCode)
@@ -113,7 +114,7 @@ compileBinaryE esrc dst = do
 
   asm <-
     firstT (X64Error . fmap (fmap locationOfDelta)) . liftE .
-    assemblyOfProgram $
+    assemblyOfProgram Label $
     coreOfProgram program
 
   ExceptT . liftIO . withSystemTempDirectory "river" $ \tmp ->

@@ -13,8 +13,10 @@ module River.X64.Pretty (
   ) where
 
 import           Data.Char (toLower)
+import qualified Data.Text as T
 import           Data.Word (Word64)
 
+import           River.Name
 import qualified River.X64.Primitive as X64
 import           River.X64.Syntax
 
@@ -24,8 +26,8 @@ import           System.Console.ANSI (SGR(..), setSGRCode)
 
 import           Text.PrettyPrint.Annotated.Leijen (Doc)
 import           Text.PrettyPrint.Annotated.Leijen ((<+>), (<>))
-import           Text.PrettyPrint.Annotated.Leijen (annotate, comma, empty)
-import           Text.PrettyPrint.Annotated.Leijen (text, integer)
+import           Text.PrettyPrint.Annotated.Leijen (annotate, comma, colon, empty)
+import           Text.PrettyPrint.Annotated.Leijen (text, int, integer)
 import           Text.PrettyPrint.Annotated.Leijen (vcat, indent)
 import qualified Text.PrettyPrint.Annotated.Leijen as Pretty
 
@@ -49,13 +51,16 @@ data Decoration =
 displayProgram :: Decoration -> [Instruction] -> String
 displayProgram decoration instructions =
   let
+    c0main =
+      Label $ Name "__c0_main"
+
     doc =
       Pretty.renderPretty 0.8 80 $ vcat
         [ annotate AnnKeyword (text ".globl") <+>
-          annotate AnnLabel (text "__c0_main")
+          ppLabel c0main
         , empty
-        , annotate AnnLabel (text "__c0_main:")
-        , indent 2 $ ppProgram instructions
+        , ppLabel c0main <> text ":"
+        , ppProgram instructions
         ]
 
     put attr str =
@@ -104,12 +109,22 @@ ppInstruction = \case
     ppInstructionName "cqto"
   Idivq x ->
     ppInstructionName "idivq" <+> ppOperand64 x
+  Test x y ->
+    ppInstructionName "test" <+> ppOperand64 x <> comma <+> ppOperand64 y
+  Lbl l ->
+    ppLabel l <> colon
+  Jmp l ->
+    ppInstructionName "jmp" <+> ppLabel l
+  Jz l ->
+    ppInstructionName "jz" <+> ppLabel l
+  Jnz l ->
+    ppInstructionName "jnz" <+> ppLabel l
   Ret ->
     ppInstructionName "ret"
 
 ppInstructionName :: String -> Doc OutputAnnot
 ppInstructionName name =
-  annotate AnnInstruction $
+  indent 2 . annotate AnnInstruction $
     text name
 
 ppOperand64 :: Operand64 -> Doc OutputAnnot
@@ -128,6 +143,17 @@ ppImmediate64 w =
 ppRegister64 :: Register64 -> Doc a
 ppRegister64 x =
   "%" <> text (fmap toLower $ show x)
+
+ppLabel :: Label -> Doc OutputAnnot
+ppLabel (Label xx) =
+  annotate AnnLabel $
+  case xx of
+    Name n ->
+      text (T.unpack n)
+    NameMod n i ->
+      text (T.unpack n) <> "_" <> int i
+    NameNew i ->
+      text "river_" <> int i
 
 ppPrim :: X64.Prim -> Doc a
 ppPrim = \case

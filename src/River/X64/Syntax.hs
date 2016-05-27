@@ -5,15 +5,19 @@ module River.X64.Syntax (
     Instruction(..)
   , Operand64(..)
   , Register64(..)
+  , Label(..)
   ) where
 
 import           Control.DeepSeq (NFData)
 
+import           Data.Text (Text)
 import           Data.Data (Data)
 import           Data.Typeable (Typeable)
 import           Data.Word (Word64)
 
 import           GHC.Generics (Generic)
+
+import           River.Name
 
 
 data Instruction =
@@ -24,6 +28,11 @@ data Instruction =
   | Imulq !Operand64
   | Cqto
   | Idivq !Operand64
+  | Test !Operand64 !Operand64
+  | Lbl !Label
+  | Jmp !Label
+  | Jz !Label
+  | Jnz !Label
   | Ret
     deriving (Eq, Ord, Read, Show, Data, Typeable, Generic, NFData)
 
@@ -31,6 +40,11 @@ data Operand64 =
     Register64 !Register64
   | Immediate64 !Word64
     deriving (Eq, Ord, Read, Show, Data, Typeable, Generic, NFData)
+
+newtype Label =
+  Label {
+      unLabel :: Name Text
+    } deriving (Eq, Ord, Read, Show, Data, Typeable, Generic, NFData)
 
 data Register64 =
     RAX
