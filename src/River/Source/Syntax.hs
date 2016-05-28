@@ -69,11 +69,6 @@ data UnaryOp =
   | Neg
     deriving (Eq, Ord, Read, Show, Data, Typeable, Generic, NFData)
 
-data PostOp =
-    Inc
-  | Dec
-    deriving (Eq, Ord, Read, Show, Data, Typeable, Generic, NFData)
-
 data BinaryOp =
     Mul
   | Div

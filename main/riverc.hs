@@ -21,7 +21,8 @@ import           River.Core.Transform.Grail
 import           River.Core.Transform.Split
 import           River.Fresh
 import           River.Source.Check
-import           River.Source.Parser
+import           River.Source.Concrete.Parser
+import           River.Source.Elaborate
 import qualified River.Source.Pretty as Source
 import           River.Source.ToCore
 import           River.X64.Assimilate
@@ -78,10 +79,11 @@ eval path = do
   case p of
     Left (TrifectaError xx) ->
       print xx
-    Right source ->
+    Right concrete ->
       either (print . fmap (fmap locationOfDelta)) print .
       evaluateProgram $
-      coreOfProgram source
+      coreOfProgram $
+      elaborateProgram concrete
 
 dump :: FilePath -> IO ()
 dump path = do
@@ -92,12 +94,17 @@ dump path = do
   case p of
     Left (TrifectaError xx) ->
       print xx
-    Right source -> do
+    Right concrete -> do
+
+      let
+        abstract =
+          elaborateProgram concrete
+
       putStrLn ""
-      putStrLn "-- Source --"
+      putStrLn "-- Abstract Syntax --"
       putStrLn ""
       putStrLn $
-        Source.displayProgram source
+        Source.displayProgram abstract
 
       let
         errors =
@@ -105,10 +112,10 @@ dump path = do
           concatMap ppCheckError .
           checkProgram .
           fmap locationOfDelta $
-          source
+          abstract
 
         core =
-          coreOfProgram source
+          coreOfProgram abstract
 
         e_else_assim =
           first show .

@@ -1,7 +1,7 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE StandaloneDeriving #-}
-module River.Source.Parser (
+module River.Source.Concrete.Parser (
     ParseError(..)
   , parseProgram
   , parseProgram'
@@ -34,13 +34,13 @@ import           Text.Trifecta (IdentifierStyle(..))
 import           Text.Trifecta (MarkParsing(..), DeltaParsing(..))
 import           Text.Trifecta (Parsing(..), Parser(..), Result(..))
 import           Text.Trifecta (letter, alphaNum, whiteSpace)
-import           Text.Trifecta (reserve, ident, natural)
-import           Text.Trifecta (parens, braces)
+import           Text.Trifecta (reserve, ident, natural, symbolic)
+import           Text.Trifecta (parens, braces, optional)
 import qualified Text.Trifecta as Trifecta
 import           Text.Trifecta.Delta (Delta(..))
 import qualified Text.Trifecta.Delta as Trifecta
 
-import           River.Source.Syntax
+import           River.Source.Concrete.Syntax
 
 ------------------------------------------------------------------------
 
@@ -81,120 +81,116 @@ pProgram = do
   pReserved "main"
   parens $ pure ()
 
-  braces $
-    Program pos . Block pos <$> many pStatement
+  Program pos <$> pBlock <* eof
 
 ------------------------------------------------------------------------
 
-pStatement :: RiverParser (Statement Delta)
-pStatement =
-  (try $ pDeclare <?> "declaration") <|>
-  (try $ pAssign <?> "assignment") <|>
-  (try $ pIf <?> "if statement") <|>
-  (try $ pWhile <?> "while loop") <|>
-  (pReturn <?> "return")
-
 pBlock :: RiverParser (Block Delta)
 pBlock = do
-  pos <- position
-  ss <-
-    fmap (:[]) pStatement <|>
-    braces (many pStatement)
-  pure $ Block pos ss
-
-pEmptyBlock :: RiverParser (Block Delta)
-pEmptyBlock =
-  Block <$> position <*> pure []
-
-pDeclare :: RiverParser (Statement Delta)
-pDeclare = do
-  pos <- position
-
-  typ <- try pType
-  name <- pIdentifier
-  mexpr <- (pEquals *> (Just <$> pExpression)) <|> pure Nothing
-
-  _ <- semi
-
-  bpos <- position
-  ss <- many pStatement
-
-  let
-    block =
-      case mexpr of
-        Nothing ->
-          Block bpos ss
-        Just expr ->
-          -- TODO check illegal use of 'name' in 'expr'
-          Block bpos $
-            Assign pos name expr : ss
-
-  pure $
-    Declare pos typ name block
-
-pAssign :: RiverParser (Statement Delta)
-pAssign = do
-  pos <- position
-  name <- pIdentifier
-  apos <- position
-  aop <- pAssignOp
-  expr <- pExpression
-  _ <- semi
-
-  case aop of
-    Nothing ->
-      pure $
-        Assign pos name expr
-    Just bop ->
-      pure $
-        Assign pos name $
-        Binary apos bop (Variable pos name) expr
-
-pWhile :: RiverParser (Statement Delta)
-pWhile =
-  While
+  Block
     <$> position
-    <*> (pReserved "while" *> parens pExpression)
-    <*> pBlock
+    <*> braces pStatements
 
-pIf :: RiverParser (Statement Delta)
+pStatements :: RiverParser [Statement Delta]
+pStatements =
+  many pStatement
+
+pStatement :: RiverParser (Statement Delta)
+pStatement =
+  (try $ SSimple <$> position <*> pSimple <* semi <?> "simple statement") <|>
+  (try $ SControl <$> position <*> pControl <?> "control statement") <|>
+  (SBlock <$> position <*> pBlock <?> "block")
+
+pSimple :: RiverParser (Simple Delta)
+pSimple =
+  (try $ pAssign <?> "assignment") <|>
+  (try $ pPost <?> "post operation") <|>
+  (pDeclare <?> "declaration")
+
+pAssign :: RiverParser (Simple Delta)
+pAssign =
+  Assign
+    <$> position
+    <*> pLValue
+    <*> pAssignOp
+    <*> pExpression
+
+pPost :: RiverParser (Simple Delta)
+pPost =
+  Post
+    <$> position
+    <*> pLValue
+    <*> pPostOp
+
+pDeclare :: RiverParser (Simple Delta)
+pDeclare =
+  Declare
+    <$> position
+    <*> pType
+    <*> pIdentifier
+    <*> optional (pEquals *> pExpression)
+
+pControl :: RiverParser (Control Delta)
+pControl =
+  (try $ pIf <?> "if statement") <|>
+  (try $ pWhile <?> "while loop") <|>
+  (try $ pFor <?> "for loop") <|>
+  (pReturn <?> "return")
+
+pIf :: RiverParser (Control Delta)
 pIf =
   let
-    elseopt =
-      pReserved "else" *> pBlock
+    pElse =
+      pReserved "else" *> pStatement
   in
     If
-      <$> position
-      <*> (pReserved "if" *> parens pExpression)
-      <*> pBlock
-      <*> (elseopt <|> pEmptyBlock)
+      <$> (position <* pReserved "if")
+      <*> parens pExpression
+      <*> pStatement
+      <*> optional pElse
 
-pAssignOp :: RiverParser (Maybe BinaryOp)
+pWhile :: RiverParser (Control Delta)
+pWhile =
+  While
+    <$> (position <* pReserved "while")
+    <*> parens pExpression
+    <*> pStatement
+
+pFor :: RiverParser (Control Delta)
+pFor =
+  For
+    <$> (position <* pReserved "for" <* symbolic '(')
+    <*> (optional pSimple <* semi)
+    <*> (pExpression <* semi)
+    <*> (optional pSimple <* symbolic ')')
+    <*> pStatement
+
+pAssignOp :: RiverParser AssignOp
 pAssignOp =
-  pOperator "="  *> pure Nothing <|>
-  pOperator "*=" *> pure (Just Mul) <|>
-  pOperator "/=" *> pure (Just Div) <|>
-  pOperator "%=" *> pure (Just Mod) <|>
-  pOperator "+=" *> pure (Just Add) <|>
-  pOperator "-=" *> pure (Just Sub) <|>
-  pOperator "<<=" *> pure (Just Shl) <|>
-  pOperator ">>=" *> pure (Just Shr) <|>
-  pOperator "&=" *> pure (Just BAnd) <|>
-  pOperator "^=" *> pure (Just BXor) <|>
-  pOperator "|=" *> pure (Just BOr)
+  pOperator "="  *> pure AEq <|>
+  pOperator "+=" *> pure AAdd <|>
+  pOperator "-=" *> pure ASub <|>
+  pOperator "*=" *> pure AMul <|>
+  pOperator "/=" *> pure ADiv <|>
+  pOperator "%=" *> pure AMod <|>
+  pOperator "<<=" *> pure AShl <|>
+  pOperator ">>=" *> pure AShr <|>
+  pOperator "&=" *> pure AAnd <|>
+  pOperator "^=" *> pure AXor <|>
+  pOperator "|=" *> pure AOr
 
-pReturn :: RiverParser (Statement Delta)
+pPostOp :: RiverParser PostOp
+pPostOp =
+  pOperator "++" *> pure Inc <|>
+  pOperator "--" *> pure Dec
+
+pReturn :: RiverParser (Control Delta)
 pReturn =
   Return
     <$> position
     <*> (pReserved "return" *> pExpression) <* semi
 
 ------------------------------------------------------------------------
-
-pType :: RiverParser Type
-pType =
-  (Int <$ pReserved "int") <|>
-  (Bool <$ pReserved "bool") <?> "type"
 
 pExpression :: RiverParser (Expression Delta)
 pExpression =
@@ -278,6 +274,17 @@ opTable =
   ]
 
 ------------------------------------------------------------------------
+
+pType :: RiverParser Type
+pType =
+  (Int <$ pReserved "int") <|>
+  (Bool <$ pReserved "bool") <?> "type"
+
+pLValue :: RiverParser (LValue Delta)
+pLValue =
+  LIdentifier
+    <$> position
+    <*> pIdentifier
 
 pIdentifier :: (Monad m, TokenParsing m) => m Identifier
 pIdentifier =

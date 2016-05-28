@@ -29,7 +29,8 @@ import qualified Data.Text.Read as T
 import           River.Bifunctor
 import           River.Name
 import           River.Source.Check
-import           River.Source.Parser
+import           River.Source.Concrete.Parser
+import           River.Source.Elaborate
 import           River.Source.Syntax
 import           River.Source.ToCore
 import           River.X64.FromCore
@@ -109,7 +110,12 @@ compileBinary src dst =
 
 compileBinaryE :: Either String FilePath -> FilePath -> ExceptT CompileError IO ()
 compileBinaryE esrc dst = do
-  program <- firstT ParseError $ either (liftE . parseProgram' "program.c") parseProgram esrc
+  concrete <- firstT ParseError $ either (liftE . parseProgram' "program.c") parseProgram esrc
+
+  let
+    program =
+      elaborateProgram concrete
+
   checkProgram' program
 
   asm <-

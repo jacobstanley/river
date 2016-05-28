@@ -13,7 +13,8 @@ import           Data.Text (Text)
 import           River.Core.Primitive
 import           River.Core.Syntax
 import           River.Name
-import           River.Source.Parser
+import           River.Source.Concrete.Parser
+import           River.Source.Elaborate
 import           River.Source.ToCore
 
 import           Control.Monad.Trans.Except (runExceptT)
@@ -44,7 +45,7 @@ fromPath path =
       Left (TrifectaError xx) ->
         error $ show xx
       Right p ->
-        return . fmap (const ()) $ coreOfProgram p
+        return . (() <$) . coreOfProgram $ elaborateProgram p
 
 unProgram :: Program Prim (Name Text) () -> Term Prim (Name Text) ()
 unProgram = \case

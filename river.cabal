@@ -78,7 +78,10 @@ library
                     River.Source.Analysis.Scope
                     River.Source.Annotation
                     River.Source.Check
-                    River.Source.Parser
+                    River.Source.Concrete.Annotation
+                    River.Source.Concrete.Parser
+                    River.Source.Concrete.Syntax
+                    River.Source.Elaborate
                     River.Source.Pretty
                     River.Source.Syntax
                     River.Source.ToCore
