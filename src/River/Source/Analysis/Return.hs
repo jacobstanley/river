@@ -59,5 +59,8 @@ returnOfStatement = \case
       ko ->
         ko
 
+  While a _ _ ->
+    ReturnKO a
+
   Return _ _ ->
     ReturnOK

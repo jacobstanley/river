@@ -16,6 +16,8 @@ import qualified River.Core.Primitive as Core
 import           River.Core.Syntax
 import           River.Core.Transform.Coalesce
 import           River.Core.Transform.Else
+import           River.Core.Transform.Grail
+import           River.Core.Transform.Split
 import           River.Fresh
 import           River.X64.Assimilate
 import           River.X64.Color
@@ -26,6 +28,8 @@ import           River.X64.Syntax
 
 data X64Error n a =
     AssimilateError !(AssimilateError n a)
+  | GrailError !(GrailError n a)
+  | SplitError !(SplitError n a)
   | RegisterAllocationError !(ColorError (RegisterError n) n)
   | CopyArityMismatch ![Operand64] !(Tail X64.Prim X64.Name a)
   | AssemblyInvalidPrim !X64.Prim ![Operand64] ![Operand64]
@@ -55,14 +59,22 @@ assemblyOfProgram mkLabel p0 = do
       elseOfProgram =<< assimilateProgram p0
 
   p2 <-
+    first GrailError $
+      grailOfProgram p1
+
+  p3 <-
+    first SplitError $
+      splitOfProgram p2
+
+  p4 <-
     first RegisterAllocationError $
-      coloredOfProgram colorByRegister p1
+      coloredOfProgram colorByRegister p3
 
   let
-    p3 =
-      coalesceProgram $ first (fromColored mkLabel) p2
+    p5 =
+      coalesceProgram $ first (fromColored mkLabel) p4
 
-  case p3 of
+  case p5 of
     Program _ tm ->
       assemblyOfTerm tm
 

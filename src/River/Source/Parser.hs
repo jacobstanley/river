@@ -91,6 +91,7 @@ pStatement =
   (try $ pDeclare <?> "declaration") <|>
   (try $ pAssign <?> "assignment") <|>
   (try $ pIf <?> "if statement") <|>
+  (try $ pWhile <?> "while loop") <|>
   (pReturn <?> "return")
 
 pBlock :: RiverParser (Block Delta)
@@ -148,6 +149,13 @@ pAssign = do
       pure $
         Assign pos name $
         Binary apos bop (Variable pos name) expr
+
+pWhile :: RiverParser (Statement Delta)
+pWhile =
+  While
+    <$> position
+    <*> (pReserved "while" *> parens pExpression)
+    <*> pBlock
 
 pIf :: RiverParser (Statement Delta)
 pIf =

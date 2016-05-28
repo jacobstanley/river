@@ -128,6 +128,11 @@ ppStatement = \case
     ppKeyword "else" <+>
     ppBlock e
 
+  While _ x b ->
+    ppKeyword "while" <+>
+    ppParens0 (ppExpression 0 x) <+>
+    ppBlock b
+
   Return _ x ->
     ppKeyword "return" <+>
     ppExpression 0 x <>

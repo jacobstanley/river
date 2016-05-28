@@ -37,6 +37,7 @@ data Statement a =
     Declare !a !Type !Identifier !(Block a)
   | Assign !a !Identifier !(Expression a)
   | If !a !(Expression a) !(Block a) !(Block a)
+  | While !a !(Expression a) !(Block a)
   | Return !a !(Expression a)
     deriving (Eq, Ord, Read, Show, Functor, Foldable, Traversable, Data, Typeable, Generic, NFData)
 

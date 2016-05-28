@@ -17,6 +17,8 @@ import           River.Core.Fresh
 import qualified River.Core.Pretty as Core
 import           River.Core.Transform.Coalesce
 import           River.Core.Transform.Else
+import           River.Core.Transform.Grail
+import           River.Core.Transform.Split
 import           River.Fresh
 import           River.Source.Check
 import           River.Source.Parser
@@ -122,11 +124,16 @@ dump path = do
         eassim =
           fmap snd e_else_assim
 
+        egrail = do
+          pe <- eelse
+          pg <- first show $ grailOfProgram pe
+          first show $ splitOfProgram pg
+
         eprecolored =
-          first show $ fmap (precoloredOfProgram colorByRegister) eelse
+          first show $ fmap (precoloredOfProgram colorByRegister) egrail
 
         ecolored =
-          first show . coloredOfProgram colorByRegister =<< eelse
+          first show . coloredOfProgram colorByRegister =<< egrail
 
         easm =
           first show $ assemblyOfProgram Label core
@@ -158,6 +165,12 @@ dump path = do
       putStrLn "-- Core (after else hoisting) --"
       putStrLn ""
       putStrLn . fromE eelse $
+        Core.displayProgram' X64.ppPrim Core.ppName
+
+      putStrLn ""
+      putStrLn "-- Core (in grail normal form) --"
+      putStrLn ""
+      putStrLn . fromE egrail $
         Core.displayProgram' X64.ppPrim Core.ppName
 
       putStrLn ""

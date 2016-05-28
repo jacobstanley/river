@@ -19,6 +19,7 @@ module River.Core.Pretty (
 
 import           Data.Text (Text)
 import qualified Data.Text as T
+import qualified Data.List as List
 
 import           River.Core.Primitive
 import           River.Core.Syntax
@@ -31,7 +32,7 @@ import           System.Console.ANSI (SGR(..), setSGRCode)
 import           Text.PrettyPrint.Annotated.Leijen (Doc)
 import           Text.PrettyPrint.Annotated.Leijen ((<+>), (<$$>), (<>))
 import           Text.PrettyPrint.Annotated.Leijen (annotate, hcat, vcat, indent)
-import           Text.PrettyPrint.Annotated.Leijen (space, comma, punctuate)
+import           Text.PrettyPrint.Annotated.Leijen (space, comma, punctuate, empty)
 import           Text.PrettyPrint.Annotated.Leijen (text, int, integer)
 import qualified Text.PrettyPrint.Annotated.Leijen as Pretty
 
@@ -124,7 +125,7 @@ ppTerm ppP ppN = \case
   LetRec _ (Bindings _ bs) tm ->
     vcat [
         ppKeyword "letrec"
-      , indent 2 . vcat $ fmap (uncurry $ ppBinding ppP ppN) bs
+      , indent 2 . vcat . List.intersperse empty $ fmap (uncurry $ ppBinding ppP ppN) bs
       , ppKeyword "in"
       , indent 2 $ ppTerm ppP ppN tm
       ]

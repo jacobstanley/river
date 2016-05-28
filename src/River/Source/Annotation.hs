@@ -27,6 +27,8 @@ annotOfStatement = \case
     a
   If a _ _ _ ->
     a
+  While a _ _ ->
+    a
   Return a _ ->
     a
 

@@ -5,6 +5,30 @@
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE DeriveTraversable #-}
 {-# LANGUAGE TemplateHaskell #-}
+--
+-- | The core language, almost all transformations and optimisations take place
+--   on this form.
+--
+--   River Core is a functional programming language whose syntactic structure
+--   guarantees that programs are always in Administrative Normal Form [1].
+--
+--   This particular flavour of ANF is heavily inspired by the one presented in
+--   [2] where a formal mapping from Static Single Assignment (SSA) form [3] to
+--   ANF is presented. [2] also demonstrates that algorithms which work over
+--   the SSA form can similarly be translated to work over ANF.
+--
+--   1. The Essence of Compiling with Continuations
+--      Cormac Flanagan, Amr Sabry, Bruce F. Duba and Matthias Felleisen (1993)
+--      https://users.soe.ucsc.edu/~cormac/papers/pldi93.pdf
+--
+--   2. A Functional Perspective on SSA Optimisation Algorithms
+--      Manuel M. T. Chakravarty, Gabriele Keller and Patryk Zadarnowski (2003)
+--      https://www.jantar.org/papers/chakravarty03perspective.pdf
+--
+--   3. Efficiently computing static single assignment form and the control dependence graph.
+--      Ron Cytron, Jeanne Ferrante, Barry K. Rosen, Mark N. Wegman, and Kenneth F. Zadeck (1991)
+--      http://www.cs.utexas.edu/~pingali/CS380C/2010/papers/ssaCytron.pdf
+--
 module River.Core.Syntax (
     Program(..)
   , Term(..)

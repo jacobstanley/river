@@ -86,6 +86,53 @@ coreOfStatements finish = \case
         term_then
         term_else
 
+  While a x b : ss -> do
+    rest <- newFresh
+    term_rest <- coreOfStatements finish ss
+
+    let
+      free_rest =
+        Set.toList $ freeOfTerm term_rest
+
+      term_call_rest =
+        Core.Return Nothing $
+        Core.Call Nothing rest $
+        fmap (Core.Variable Nothing) free_rest
+
+    n <- newFresh
+    term_let_if <- coreOfExpression n x
+
+    -- TODO this could be optimised, we're stupidly generating the core twice
+    free_body <- Set.toList . freeOfTerm <$> coreOfBlock (Core.Copy Nothing []) b
+    while <- newFresh
+
+    let
+      call_while =
+        Core.Call (Just a) while $
+        fmap (Core.Variable Nothing) free_body
+
+    term_body <- coreOfBlock call_while b
+
+    let
+      term_while =
+        term_let_if $
+        Core.If (Just a) (Core.Variable (Just a) n)
+          term_body
+          term_call_rest
+
+      free_while =
+        Set.toList $ freeOfTerm term_while
+
+      bindings =
+        Core.Bindings Nothing
+        [ (while, Core.Lambda Nothing free_while term_while)
+        , (rest, Core.Lambda Nothing free_rest term_rest)
+        ]
+
+    pure $
+      Core.LetRec Nothing bindings $
+      Core.Return Nothing call_while
+
   Return a x : _ss -> do
     n <- newFresh
     term_let <- coreOfExpression n x

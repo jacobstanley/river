@@ -63,6 +63,10 @@ checkStatement = \case
     checkBlock t ++
     checkBlock e
 
+  While _ x b ->
+    checkExpression x ++
+    checkBlock b
+
   Return _ x ->
     checkExpression x
 

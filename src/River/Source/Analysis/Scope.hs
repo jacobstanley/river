@@ -167,6 +167,32 @@ scopedStatement declared = \case
     in
       If a i t e
 
+  While a0 x0 b0 ->
+    let
+      x =
+        scopedExpression declared x0
+
+      b =
+        scopedBlock declared b0
+
+      x_scope =
+        annotOfExpression x
+
+      b_scope =
+        annotOfBlock b
+
+      defined =
+        Map.empty
+
+      live =
+        scopeLive x_scope `mapSetUnion`
+        scopeLive b_scope
+
+      a =
+        Scope declared defined live a0
+    in
+      While a x b
+
   Return a0 x0 ->
     let
       x =

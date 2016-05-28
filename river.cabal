@@ -64,7 +64,9 @@ library
                     River.Core.Syntax
                     River.Core.Transform.Coalesce
                     River.Core.Transform.Else
+                    River.Core.Transform.Grail
                     River.Core.Transform.Rename
+                    River.Core.Transform.Split
 
                     River.Fresh
                     River.Map
@@ -74,6 +76,7 @@ library
                     River.Source.Analysis.Live
                     River.Source.Analysis.Return
                     River.Source.Analysis.Scope
+                    River.Source.Annotation
                     River.Source.Check
                     River.Source.Parser
                     River.Source.Pretty
