@@ -3,6 +3,7 @@
 {-# LANGUAGE DeriveGeneric #-}
 module River.X64.Syntax (
     Instruction(..)
+  , Cc(..)
   , Operand64(..)
   , Register64(..)
   , Label(..)
@@ -28,12 +29,24 @@ data Instruction =
   | Imulq !Operand64
   | Cqto
   | Idivq !Operand64
+  | Cmpq !Operand64 !Operand64
   | Test !Operand64 !Operand64
-  | Lbl !Label
+  | Set !Cc !Operand64
+  | J !Cc !Label
   | Jmp !Label
-  | Jz !Label
-  | Jnz !Label
+  | Lbl !Label
   | Ret
+    deriving (Eq, Ord, Read, Show, Data, Typeable, Generic, NFData)
+
+data Cc =
+    Z  -- ^ if zero
+  | E  -- ^ if equal
+  | Nz -- ^ if not zero
+  | Ne -- ^ if not equal
+  | L  -- ^ if less than
+  | Le -- ^ if less or equal
+  | Gt -- ^ if greater than
+  | G  -- ^ if greater or equal
     deriving (Eq, Ord, Read, Show, Data, Typeable, Generic, NFData)
 
 data Operand64 =

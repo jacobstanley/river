@@ -18,6 +18,6 @@ import           River.X64.Syntax
 
 
 data Name =
-    L !Label
-  | R !Register64
+    Lb !Label
+  | Rg !Register64
     deriving (Eq, Ord, Read, Show, Data, Typeable, Generic, NFData)

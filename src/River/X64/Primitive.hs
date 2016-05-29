@@ -3,6 +3,7 @@
 {-# LANGUAGE DeriveGeneric #-}
 module River.X64.Primitive (
     Prim(..)
+  , Cc(..)
   ) where
 
 import           Control.DeepSeq (NFData)
@@ -11,6 +12,8 @@ import           Data.Data (Data)
 import           Data.Typeable (Typeable)
 
 import           GHC.Generics (Generic)
+
+import           River.X64.Syntax (Cc(..))
 
 
 data Prim =
@@ -29,4 +32,7 @@ data Prim =
 
   | Sal
   | Sar
+
+  | Cmp
+  | Set !Cc
     deriving (Eq, Ord, Read, Show, Data, Typeable, Generic, NFData)

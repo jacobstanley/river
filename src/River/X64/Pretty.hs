@@ -109,23 +109,29 @@ ppInstruction = \case
     ppInstructionName "cqto"
   Idivq x ->
     ppInstructionName "idivq" <+> ppOperand64 x
+  Cmpq x y ->
+    ppInstructionName "cmpq" <+> ppOperand64 x <> comma <+> ppOperand64 y
   Test x y ->
     ppInstructionName "test" <+> ppOperand64 x <> comma <+> ppOperand64 y
-  Lbl l ->
-    ppLabel l <> colon
+  Set cc x ->
+    ppInstructionName' "set" (ppCc cc) <+> ppOperand64 x
+  J cc l ->
+    ppInstructionName' "j" (ppCc cc) <+> ppLabel l
   Jmp l ->
     ppInstructionName "jmp" <+> ppLabel l
-  Jz l ->
-    ppInstructionName "jz" <+> ppLabel l
-  Jnz l ->
-    ppInstructionName "jnz" <+> ppLabel l
+  Lbl l ->
+    ppLabel l <> colon
   Ret ->
     ppInstructionName "ret"
 
 ppInstructionName :: String -> Doc OutputAnnot
 ppInstructionName name =
+  ppInstructionName' name empty
+
+ppInstructionName' :: String -> Doc OutputAnnot -> Doc OutputAnnot
+ppInstructionName' name imod =
   indent 2 . annotate AnnInstruction $
-    text name
+    text name <> imod
 
 ppOperand64 :: Operand64 -> Doc OutputAnnot
 ppOperand64 = \case
@@ -181,3 +187,26 @@ ppPrim = \case
     text "sal"
   X64.Sar ->
     text "sar"
+  X64.Cmp ->
+    text "cmp"
+  X64.Set cc ->
+    text "set" <> ppCc cc
+
+ppCc :: Cc -> Doc a
+ppCc = \case
+  Z ->
+    text "z"
+  E ->
+    text "e"
+  Nz ->
+    text "nz"
+  Ne ->
+    text "ne"
+  L ->
+    text "l"
+  Le ->
+    text "le"
+  Gt ->
+    text "g"
+  G ->
+    text "ge"

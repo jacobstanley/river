@@ -82,16 +82,16 @@ fromColored :: (n -> Label) -> (n, Maybe Register64) -> X64.Name
 fromColored f (n, mr) =
   case mr of
     Nothing ->
-      L $ f n
+      Lb $ f n
     Just r ->
-      R r
+      Rg r
 
 assemblyOfTerm :: Term () X64.Prim X64.Name a -> Either (X64Error n a) [Instruction]
 assemblyOfTerm = \case
-  Return _ (Copy _ [Variable _ (R RAX)]) ->
+  Return _ (Copy _ [Variable _ (Rg RAX)]) ->
     pure [ Ret ]
 
-  Return _ (Call _ (L n) _) ->
+  Return _ (Call _ (Lb n) _) ->
     pure [ Jmp n ]
 
   Return _ tl ->
@@ -99,11 +99,11 @@ assemblyOfTerm = \case
       <$> assemblyOfTail [Register64 RAX] tl
       <*> pure [ Ret ]
 
-  If _ () (Variable _ (R i)) t (Return _ (Call _ (L e) [])) ->
+  If _ () (Variable _ (Rg i)) t (Return _ (Call _ (Lb e) [])) ->
     let
       preamble =
         [ Test (Register64 i) (Register64 i)
-        , Jz e ]
+        , J Z e ]
     in
       (preamble ++) <$> assemblyOfTerm t
 
@@ -126,7 +126,7 @@ assemblyOfBindings = \case
   Bindings a nbs ->
     let
       go = \case
-        (L n, b) ->
+        (Lb n, b) ->
           fmap ([ Lbl n ] ++) (assemblyOfBinding b)
 
         (n, b) ->
@@ -143,9 +143,9 @@ operandsOfNames :: a -> [X64.Name] -> Either (X64Error n a) [Operand64]
 operandsOfNames a ns =
   let
     go = \case
-      L l ->
+      Lb l ->
         Left $ CannotLetBindLabel a l
-      R r ->
+      Rg r ->
         Right $ Register64 r
   in
     traverse go ns
@@ -163,11 +163,11 @@ assemblyOfTail dsts tl =
       | otherwise ->
         Left $ CopyArityMismatch dsts tl
 
-    Call a (L n) xs ->
+    Call a (Lb n) xs ->
       -- TODO only tail calls are supports, which is handled in assemblyOfTerm
       Left $ CallNotSupportedYet a n xs
 
-    Call a (R n) xs ->
+    Call a (Rg n) xs ->
       Left $ CannotCallRegister a n xs
 
     Prim _ prim xs0 -> do
@@ -235,7 +235,7 @@ operandOfAtom :: Atom X64.Name a -> Either (X64Error n a) Operand64
 operandOfAtom = \case
   Immediate _ x ->
     pure . Immediate64 $ fromInteger x
-  Variable _ (R x) ->
+  Variable _ (Rg x) ->
     pure $ Register64 x
-  Variable a (L x) ->
+  Variable a (Lb x) ->
     Left $ LabelCannotBeAtom a x
