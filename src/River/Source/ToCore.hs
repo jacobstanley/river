@@ -154,6 +154,15 @@ coreOfExpression dst = \case
       Core.Let (Just a) [dst] $
       Core.Copy (Just a) [Core.Immediate (Just a) x]
 
+  Literal a (LiteralBool b) ->
+    let
+      x =
+        if b then 1 else 0
+    in
+      pure $
+        Core.Let (Just a) [dst] $
+        Core.Copy (Just a) [Core.Immediate (Just a) x]
+
   Variable a (Identifier n1) ->
     pure $
       Core.Let (Just a) [dst] $
@@ -193,6 +202,10 @@ coreOfUnaryOp :: UnaryOp -> Core.Prim
 coreOfUnaryOp = \case
   Neg ->
     Core.Neg
+  LNot ->
+    Core.Not
+  BNot ->
+    Core.Not
 
 coreOfBinaryOp :: BinaryOp -> Core.Prim
 coreOfBinaryOp = \case
@@ -206,3 +219,28 @@ coreOfBinaryOp = \case
     Core.Div
   Mod ->
     Core.Mod
+
+  Lt ->
+    Core.Lt
+  Le ->
+    Core.Le
+  Gt ->
+    Core.Gt
+  Ge ->
+    Core.Ge
+  Eq ->
+    Core.Eq
+  NEq ->
+    Core.NEq
+
+  And ->
+    Core.And
+  Xor ->
+    Core.Xor
+  Or ->
+    Core.Or
+
+  Shl ->
+    Core.Shl
+  Shr ->
+    Core.Shr

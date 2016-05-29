@@ -15,10 +15,26 @@ import           GHC.Generics (Generic)
 
 data Prim =
     Neg
+  | Not
+
   | Add
   | Sub
   | Mul
   | Div
   | Mod
+
+  | Eq
+  | NEq
+  | Lt
+  | Le
+  | Gt
+  | Ge
+
+  | And
+  | Xor
+  | Or
+
+  | Shl
+  | Shr
     deriving (Eq, Ord, Read, Show, Data, Typeable, Generic, NFData)
 

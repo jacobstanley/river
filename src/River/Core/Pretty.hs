@@ -171,6 +171,8 @@ ppPrim :: Prim -> Doc a
 ppPrim = \case
   Neg ->
     text "neg"
+  Not ->
+    text "not"
   Add ->
     text "add"
   Sub ->
@@ -181,6 +183,28 @@ ppPrim = \case
     text "div"
   Mod ->
     text "mod"
+  Lt ->
+    text "lt"
+  Le ->
+    text "le"
+  Gt ->
+    text "gt"
+  Ge ->
+    text "ge"
+  Eq ->
+    text "eq"
+  NEq ->
+    text "neq"
+  And ->
+    text "and"
+  Xor ->
+    text "xor"
+  Or ->
+    text "or"
+  Shl ->
+    text "shl"
+  Shr ->
+    text "shr"
 
 ------------------------------------------------------------------------
 

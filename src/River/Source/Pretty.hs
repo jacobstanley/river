@@ -235,16 +235,12 @@ ppBinaryOp = \case
     ppOperator "=="
   NEq ->
     ppOperator "!="
-  BAnd ->
+  And ->
     ppOperator "&"
-  BXor ->
+  Xor ->
     ppOperator "^"
-  BOr ->
+  Or ->
     ppOperator "|"
-  LAnd ->
-    ppOperator "&&"
-  LOr ->
-    ppOperator "||"
 
 ppKeyword :: String -> Doc OutputAnnot
 ppKeyword =
@@ -314,13 +310,9 @@ precBinaryOp = \case
     6
   NEq ->
     6
-  BAnd ->
+  And ->
     5
-  BXor ->
+  Xor ->
     4
-  BOr ->
+  Or ->
     3
-  LAnd ->
-    2
-  LOr ->
-    1

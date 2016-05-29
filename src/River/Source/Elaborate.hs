@@ -38,12 +38,12 @@ elaborateControl :: Concrete.Control a -> [Statement a] -> [Statement a]
 elaborateControl ctrl ss =
   case ctrl of
     Concrete.If a cond t me ->
-      [ If a cond
+      [ If a (elaborateExpression cond)
           (mkBlock a [t])
           (mkBlock a (maybeToList me)) ] ++ ss
 
     Concrete.While a cond s ->
-      [ While a cond
+      [ While a (elaborateExpression cond)
           (mkBlock a [s]) ] ++ ss
 
     Concrete.For a init0 cond step0 s ->
@@ -58,11 +58,11 @@ elaborateControl ctrl ss =
           elaborateStatements [s]
       in
         ss_init $
-        [ While a cond
+        [ While a (elaborateExpression cond)
             (Block a (ss_body ++ ss_step)) ] ++ ss
 
     Concrete.Return a x ->
-      [ Return a x ] ++ ss
+      [ Return a (elaborateExpression x) ] ++ ss
 
 mkBlock :: a -> [Concrete.Statement a] -> Block a
 mkBlock a = \case
@@ -82,7 +82,7 @@ elaborateSimple simp ss =
         var =
           Variable (annotOfLValue lv) ident
       in
-        Assign a ident (elaborateAssignOp a var x asop) : ss
+        Assign a ident (elaborateAssignOp a var (elaborateExpression x) asop) : ss
 
     Concrete.Post a lv pop ->
       let
@@ -100,12 +100,71 @@ elaborateSimple simp ss =
 
     Concrete.Declare a typ ident (Just x) ->
       [ Declare a typ ident $
-          Block a (Assign a ident x : ss) ]
+          Block a (Assign a ident (elaborateExpression x) : ss) ]
 
 elaborateLValue :: Concrete.LValue a -> Identifier
 elaborateLValue = \case
   Concrete.LIdentifier _ ident ->
     ident
+
+elaborateExpression :: Concrete.Expression a -> Expression a
+elaborateExpression = \case
+  Concrete.Literal a lit ->
+    Literal a lit
+  Concrete.Variable a ident ->
+    Variable a ident
+  Concrete.Unary a op x ->
+    Unary a op
+      (elaborateExpression x)
+  Concrete.Binary a op x y ->
+    elaborateBinaryOp a
+      (elaborateExpression x)
+      (elaborateExpression y)
+      op
+  Concrete.Conditional a i t e ->
+    Conditional a
+      (elaborateExpression i)
+      (elaborateExpression t)
+      (elaborateExpression e)
+
+elaborateBinaryOp :: a -> Expression a -> Expression a -> Concrete.BinaryOp -> Expression a
+elaborateBinaryOp a x y = \case
+  Concrete.Mul ->
+    Binary a Mul x y
+  Concrete.Div ->
+    Binary a Div x y
+  Concrete.Mod ->
+    Binary a Mod x y
+  Concrete.Add ->
+    Binary a Add x y
+  Concrete.Sub ->
+    Binary a Sub x y
+  Concrete.Shl ->
+    Binary a Shl x y
+  Concrete.Shr ->
+    Binary a Shr x y
+  Concrete.Lt ->
+    Binary a Lt x y
+  Concrete.Le ->
+    Binary a Le x y
+  Concrete.Gt ->
+    Binary a Gt x y
+  Concrete.Ge ->
+    Binary a Ge x y
+  Concrete.Eq ->
+    Binary a Eq x y
+  Concrete.NEq ->
+    Binary a NEq x y
+  Concrete.BAnd ->
+    Binary a And x y
+  Concrete.BXor ->
+    Binary a Xor x y
+  Concrete.BOr ->
+    Binary a Or x y
+  Concrete.LAnd ->
+    Conditional a x y (Literal a $ LiteralBool False)
+  Concrete.LOr ->
+    Conditional a x (Literal a $ LiteralBool True) y
 
 elaborateAssignOp :: a -> Expression a -> Expression a -> Concrete.AssignOp -> Expression a
 elaborateAssignOp a var x = \case
@@ -122,11 +181,11 @@ elaborateAssignOp a var x = \case
   Concrete.AMod ->
     Binary a Mod var x
   Concrete.AAnd ->
-    Binary a BAnd var x
+    Binary a And var x
   Concrete.AXor ->
-    Binary a BXor var x
+    Binary a Xor var x
   Concrete.AOr ->
-    Binary a BOr var x
+    Binary a Or var x
   Concrete.AShl ->
     Binary a Shl var x
   Concrete.AShr ->

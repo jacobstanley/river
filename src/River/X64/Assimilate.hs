@@ -104,10 +104,25 @@ assimilateTrivialPrim = \case
     -- Trivial cases
     Core.Neg ->
       Just X64.Neg
+    Core.Not ->
+      Just X64.Not
+
     Core.Add ->
       Just X64.Add
     Core.Sub ->
       Just X64.Sub
+
+    Core.And ->
+      Just X64.And
+    Core.Xor ->
+      Just X64.Xor
+    Core.Or ->
+      Just X64.Or
+
+    Core.Shl ->
+      Just X64.Sal
+    Core.Shr ->
+      Just X64.Sar
 
     -- Complex cases, must be handled by assimilateComplexPrim.
     Core.Mul ->
@@ -115,6 +130,19 @@ assimilateTrivialPrim = \case
     Core.Div ->
       Nothing
     Core.Mod ->
+      Nothing
+
+    Core.Eq ->
+      Nothing
+    Core.NEq ->
+      Nothing
+    Core.Lt ->
+      Nothing
+    Core.Le ->
+      Nothing
+    Core.Gt ->
+      Nothing
+    Core.Ge ->
       Nothing
 
 assimilateComplexPrim ::

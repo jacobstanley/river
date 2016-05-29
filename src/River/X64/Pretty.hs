@@ -159,6 +159,8 @@ ppPrim :: X64.Prim -> Doc a
 ppPrim = \case
   X64.Neg ->
     text "neg"
+  X64.Not ->
+    text "not"
   X64.Add ->
     text "add"
   X64.Sub ->
@@ -169,3 +171,13 @@ ppPrim = \case
     text "idiv"
   X64.Cqto ->
     text "cqto"
+  X64.And ->
+    text "and"
+  X64.Xor ->
+    text "xor"
+  X64.Or ->
+    text "or"
+  X64.Sal ->
+    text "sal"
+  X64.Sar ->
+    text "sar"

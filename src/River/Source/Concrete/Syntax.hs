@@ -11,16 +11,16 @@ module River.Source.Concrete.Syntax (
   , Simple(..)
   , Control(..)
   , LValue(..)
+  , Expression(..)
   , PostOp(..)
   , AssignOp(..)
+  , BinaryOp(..)
 
   -- * Re-exports from River.Source.Syntax.Abstract
-  , Expression(..)
   , Literal(..)
   , Identifier(..)
   , Type(..)
   , UnaryOp(..)
-  , BinaryOp(..)
   ) where
 
 import           Control.DeepSeq (NFData)
@@ -30,9 +30,8 @@ import           Data.Typeable (Typeable)
 
 import           GHC.Generics (Generic)
 
-import           River.Source.Syntax (Expression(..))
 import           River.Source.Syntax (Literal(..), Identifier(..), Type(..))
-import           River.Source.Syntax (UnaryOp(..), BinaryOp(..))
+import           River.Source.Syntax (UnaryOp(..))
 
 
 data Program a =
@@ -66,6 +65,14 @@ data LValue a =
     LIdentifier !a !Identifier
     deriving (Eq, Ord, Read, Show, Functor, Foldable, Traversable, Data, Typeable, Generic, NFData)
 
+data Expression a =
+    Literal !a !Literal
+  | Variable !a !Identifier
+  | Unary !a !UnaryOp !(Expression a)
+  | Binary !a !BinaryOp !(Expression a) !(Expression a)
+  | Conditional !a !(Expression a) !(Expression a) !(Expression a)
+    deriving (Eq, Ord, Read, Show, Functor, Foldable, Traversable, Data, Typeable, Generic, NFData)
+
 data PostOp =
     Inc
   | Dec
@@ -83,4 +90,25 @@ data AssignOp =
   | AOr
   | AShl
   | AShr
+    deriving (Eq, Ord, Read, Show, Data, Typeable, Generic, NFData)
+
+data BinaryOp =
+    Mul
+  | Div
+  | Mod
+  | Add
+  | Sub
+  | Shl
+  | Shr
+  | Lt
+  | Le
+  | Gt
+  | Ge
+  | Eq
+  | NEq
+  | BAnd
+  | BXor
+  | BOr
+  | LAnd
+  | LOr
     deriving (Eq, Ord, Read, Show, Data, Typeable, Generic, NFData)

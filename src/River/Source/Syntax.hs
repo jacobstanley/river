@@ -83,9 +83,7 @@ data BinaryOp =
   | Ge
   | Eq
   | NEq
-  | BAnd
-  | BXor
-  | BOr
-  | LAnd
-  | LOr
+  | And
+  | Xor
+  | Or
     deriving (Eq, Ord, Read, Show, Data, Typeable, Generic, NFData)
