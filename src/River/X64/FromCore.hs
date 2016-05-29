@@ -91,8 +91,6 @@ assemblyOfTerm = \case
   Return _ (Copy _ [Variable _ (R RAX)]) ->
     pure [ Ret ]
 
-  -- TODO Ensure calls are in Grail Normal Form (GNF) so we don't need to do
-  -- TODO any extra moves at this time.
   Return _ (Call _ (L n) _) ->
     pure [ Jmp n ]
 

@@ -134,7 +134,7 @@ assimilateTrivialPrim = \case
 
     Core.Eq ->
       Nothing
-    Core.NEq ->
+    Core.Ne ->
       Nothing
     Core.Lt ->
       Nothing

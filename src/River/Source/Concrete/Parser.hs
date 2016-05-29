@@ -259,7 +259,7 @@ opTable =
     , binary ">=" (\p -> Binary p Ge) AssocLeft
     ]
   , [ binary "==" (\p -> Binary p Eq) AssocLeft
-    , binary "!=" (\p -> Binary p NEq) AssocLeft
+    , binary "!=" (\p -> Binary p Ne) AssocLeft
     ]
   , [ binary "&"  (\p -> Binary p BAnd) AssocLeft
     ]

@@ -143,6 +143,10 @@ elaborateBinaryOp a x y = \case
     Binary a Shl x y
   Concrete.Shr ->
     Binary a Shr x y
+  Concrete.Eq ->
+    Binary a Eq x y
+  Concrete.Ne ->
+    Binary a Ne x y
   Concrete.Lt ->
     Binary a Lt x y
   Concrete.Le ->
@@ -151,10 +155,6 @@ elaborateBinaryOp a x y = \case
     Binary a Gt x y
   Concrete.Ge ->
     Binary a Ge x y
-  Concrete.Eq ->
-    Binary a Eq x y
-  Concrete.NEq ->
-    Binary a NEq x y
   Concrete.BAnd ->
     Binary a And x y
   Concrete.BXor ->

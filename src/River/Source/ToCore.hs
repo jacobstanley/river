@@ -220,6 +220,10 @@ coreOfBinaryOp = \case
   Mod ->
     Core.Mod
 
+  Eq ->
+    Core.Eq
+  Ne ->
+    Core.Ne
   Lt ->
     Core.Lt
   Le ->
@@ -228,10 +232,6 @@ coreOfBinaryOp = \case
     Core.Gt
   Ge ->
     Core.Ge
-  Eq ->
-    Core.Eq
-  NEq ->
-    Core.NEq
 
   And ->
     Core.And

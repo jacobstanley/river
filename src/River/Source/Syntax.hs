@@ -82,7 +82,7 @@ data BinaryOp =
   | Gt
   | Ge
   | Eq
-  | NEq
+  | Ne
   | And
   | Xor
   | Or

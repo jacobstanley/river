@@ -233,7 +233,7 @@ ppBinaryOp = \case
     ppOperator ">="
   Eq ->
     ppOperator "=="
-  NEq ->
+  Ne ->
     ppOperator "!="
   And ->
     ppOperator "&"
@@ -308,7 +308,7 @@ precBinaryOp = \case
     7
   Eq ->
     6
-  NEq ->
+  Ne ->
     6
   And ->
     5

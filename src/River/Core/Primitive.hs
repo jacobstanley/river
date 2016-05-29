@@ -24,7 +24,7 @@ data Prim =
   | Mod
 
   | Eq
-  | NEq
+  | Ne
   | Lt
   | Le
   | Gt
@@ -37,4 +37,3 @@ data Prim =
   | Shl
   | Shr
     deriving (Eq, Ord, Read, Show, Data, Typeable, Generic, NFData)
-

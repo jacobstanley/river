@@ -193,8 +193,8 @@ ppPrim = \case
     text "ge"
   Eq ->
     text "eq"
-  NEq ->
-    text "neq"
+  Ne ->
+    text "ne"
   And ->
     text "and"
   Xor ->
