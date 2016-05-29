@@ -13,7 +13,7 @@ import           River.Core.Syntax
 import           River.Fresh
 
 
-elseOfProgram :: (Ord n, FreshName n, MonadFresh m) => Program p n a -> m (Program p n a)
+elseOfProgram :: (Ord n, FreshName n, MonadFresh m) => Program k p n a -> m (Program k p n a)
 elseOfProgram = \case
   Program a tm0 -> do
     Program a <$> elseOfTerm tm0
@@ -22,14 +22,14 @@ elseOfTerm ::
   Ord n =>
   FreshName n =>
   MonadFresh m =>
-  Term p n a ->
-  m (Term p n a)
+  Term k p n a ->
+  m (Term k p n a)
 elseOfTerm = \case
   Return a tl ->
     pure $
       Return a tl
 
-  If a i t e0 -> do
+  If a k i t e0 -> do
     e <- elseOfTerm e0
     ne <- newFresh
 
@@ -45,7 +45,7 @@ elseOfTerm = \case
     pure $
       LetRec ae
         (Bindings ae [(ne, Lambda ae [] e)]) $
-      If a i t $
+      If a k i t $
         Return ae (Call ae ne [])
 
   Let a ns tl tm ->
@@ -60,8 +60,8 @@ elseOfBindings ::
   Ord n =>
   FreshName n =>
   MonadFresh m =>
-  Bindings p n a ->
-  m (Bindings p n a)
+  Bindings k p n a ->
+  m (Bindings k p n a)
 elseOfBindings = \case
   Bindings a bs0 -> do
     Bindings a <$> traverse (secondA elseOfBinding) bs0
@@ -70,8 +70,8 @@ elseOfBinding ::
   Ord n =>
   FreshName n =>
   MonadFresh m =>
-  Binding p n a ->
-  m (Binding p n a)
+  Binding k p n a ->
+  m (Binding k p n a)
 elseOfBinding = \case
   Lambda a ns tm ->
     Lambda a ns <$> elseOfTerm tm

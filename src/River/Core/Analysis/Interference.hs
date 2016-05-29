@@ -62,20 +62,20 @@ fromNeighboring =
 ------------------------------------------------------------------------
 
 -- | Find the interference graph of a program.
-interferenceOfProgram :: Ord n => Program p n a -> InterferenceGraph n
+interferenceOfProgram :: Ord n => Program k p n a -> InterferenceGraph n
 interferenceOfProgram = \case
   Program _ tm ->
     interferenceOfTerm tm
 
-interferenceOfTerm :: Ord n => Term p n a -> InterferenceGraph n
+interferenceOfTerm :: Ord n => Term k p n a -> InterferenceGraph n
 interferenceOfTerm =
   interferenceOfAnnotTerm . annotFreeOfTerm
 
-interferenceOfAnnotTerm :: Ord n => Term p n (Free n a) -> InterferenceGraph n
+interferenceOfAnnotTerm :: Ord n => Term k p n (Free n a) -> InterferenceGraph n
 interferenceOfAnnotTerm = \case
  Return a _ ->
    fromNeighboring (freeVars a)
- If a _ t e ->
+ If a _ _ t e ->
    fromNeighboring (freeVars a) <>
    interferenceOfAnnotTerm t <>
    interferenceOfAnnotTerm e
@@ -92,7 +92,7 @@ interferenceOfAnnotTerm = \case
    interferenceOfAnnotBindings bs <>
    interferenceOfAnnotTerm tm
 
-interferenceOfAnnotBindings :: Ord n => Bindings p n (Free n a) -> InterferenceGraph n
+interferenceOfAnnotBindings :: Ord n => Bindings k p n (Free n a) -> InterferenceGraph n
 interferenceOfAnnotBindings = \case
   Bindings a bs ->
     fromNeighboring (freeVars a) <>
@@ -100,14 +100,14 @@ interferenceOfAnnotBindings = \case
     -- Maybe they should have a different name type?
     mconcat (fmap (interferenceOfAnnotBinding . snd) bs)
 
-interferenceOfAnnotBinding :: Ord n => Binding p n (Free n a) -> InterferenceGraph n
+interferenceOfAnnotBinding :: Ord n => Binding k p n (Free n a) -> InterferenceGraph n
 interferenceOfAnnotBinding = \case
   Lambda a ns tm ->
     fromNeighboring (freeVars a) <>
     fromNeighboring (freeOfAnnotTerm tm <> Set.fromList ns) <>
     interferenceOfAnnotTerm tm
 
-freeOfAnnotTerm :: Term p n (Free n a) -> Set n
+freeOfAnnotTerm :: Term k p n (Free n a) -> Set n
 freeOfAnnotTerm =
   freeVars . annotOfTerm
 

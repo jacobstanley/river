@@ -29,18 +29,18 @@ data GrailError n a =
   | GrailCallArityMismatch !a !n ![Atom n a] ![n]
     deriving (Eq, Ord, Show, Functor)
 
-grailOfProgram :: Ord n => Program p n a -> Either (GrailError n a) (Program p n a)
+grailOfProgram :: Ord n => Program k p n a -> Either (GrailError n a) (Program k p n a)
 grailOfProgram = \case
   Program a tm ->
     Program a <$> grailOfTerm Map.empty tm
 
-grailOfTerm :: Ord n => Map n [n] -> Term p n a -> Either (GrailError n a) (Term p n a)
+grailOfTerm :: Ord n => Map n [n] -> Term k p n a -> Either (GrailError n a) (Term k p n a)
 grailOfTerm env0 = \case
   Return a tl ->
     grailOfTail env0 tl $ pure . Return a
 
-  If a i t e ->
-    If a i
+  If a k i t e ->
+    If a k i
       <$> grailOfTerm env0 t
       <*> grailOfTerm env0 e
 
@@ -57,8 +57,8 @@ grailOfTerm env0 = \case
 grailOfBindings ::
   Ord n =>
   Map n [n] ->
-  Bindings p n a ->
-  Either (GrailError n a) (Map n [n], Bindings p n a)
+  Bindings k p n a ->
+  Either (GrailError n a) (Map n [n], Bindings k p n a)
 grailOfBindings env0 = \case
   Bindings a bs ->
     let
@@ -71,12 +71,12 @@ grailOfBindings env0 = \case
       (env,) . Bindings a <$>
         traverse (secondA (grailOfBinding env)) bs
 
-paramsOfBinding :: Binding p n a -> [n]
+paramsOfBinding :: Binding k p n a -> [n]
 paramsOfBinding = \case
   Lambda _ ns _ ->
     ns
 
-grailOfBinding :: Ord n => Map n [n] -> Binding p n a -> Either (GrailError n a) (Binding p n a)
+grailOfBinding :: Ord n => Map n [n] -> Binding k p n a -> Either (GrailError n a) (Binding k p n a)
 grailOfBinding env = \case
   Lambda a ns tm ->
     Lambda a ns <$> grailOfTerm env tm
@@ -85,8 +85,8 @@ grailOfTail ::
   Ord n =>
   Map n [n] ->
   Tail p n a ->
-  (Tail p n a -> Either (GrailError n a) (Term p n a)) ->
-  Either (GrailError n a) (Term p n a)
+  (Tail p n a -> Either (GrailError n a) (Term k p n a)) ->
+  Either (GrailError n a) (Term k p n a)
 grailOfTail env tl mkTerm =
   case tl of
     Copy a xs ->

@@ -27,18 +27,18 @@ data SplitError n a =
     SplitCopyArityMismatch !a ![n] ![Atom n a]
     deriving (Eq, Ord, Show, Functor)
 
-splitOfProgram :: Program p n a -> Either (SplitError n a) (Program p n a)
+splitOfProgram :: Program k p n a -> Either (SplitError n a) (Program k p n a)
 splitOfProgram = \case
   Program a tm ->
     Program a <$> splitOfTerm tm
 
-splitOfTerm :: Term p n a -> Either (SplitError n a) (Term p n a)
+splitOfTerm :: Term k p n a -> Either (SplitError n a) (Term k p n a)
 splitOfTerm = \case
   Return a tl ->
     pure $ Return a tl
 
-  If a i t e ->
-    If a i
+  If a k i t e ->
+    If a k i
       <$> splitOfTerm t
       <*> splitOfTerm e
 
@@ -62,13 +62,13 @@ splitOfTerm = \case
       <$> splitOfBindings bs
       <*> splitOfTerm tm
 
-splitOfBindings :: Bindings p n a -> Either (SplitError n a) (Bindings p n a)
+splitOfBindings :: Bindings k p n a -> Either (SplitError n a) (Bindings k p n a)
 splitOfBindings = \case
   Bindings a bs ->
     Bindings a <$>
       traverse (secondA splitOfBinding) bs
 
-splitOfBinding :: Binding p n a -> Either (SplitError n a) (Binding p n a)
+splitOfBinding :: Binding k p n a -> Either (SplitError n a) (Binding k p n a)
 splitOfBinding = \case
   Lambda a ns tm ->
     Lambda a ns <$>

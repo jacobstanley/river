@@ -35,8 +35,8 @@ data X64Error n a =
   | AssemblyInvalidPrim !X64.Prim ![Operand64] ![Operand64]
   | LabelCannotBeAtom !a !Label
   | CannotLetBindLabel !a !Label
-  | MalformedIf !a !(Atom X64.Name a) !(Term X64.Prim X64.Name a) !(Term X64.Prim X64.Name a)
-  | MalformedBinding !a !X64.Name !(Binding X64.Prim X64.Name a)
+  | MalformedIf !a !(Atom X64.Name a) !(Term () X64.Prim X64.Name a) !(Term () X64.Prim X64.Name a)
+  | MalformedBinding !a !X64.Name !(Binding () X64.Prim X64.Name a)
   | CallNotSupportedYet !a !Label ![Atom X64.Name a]
   | CannotCallRegister !a !Register64 ![Atom X64.Name a]
     deriving (Eq, Ord, Show, Functor)
@@ -47,7 +47,7 @@ assemblyOfProgram ::
   Ord n =>
   FreshName n =>
   (n -> Label) ->
-  Program Core.Prim n a ->
+  Program () Core.Prim n a ->
   Either (X64Error n a) [Instruction]
 assemblyOfProgram mkLabel p0 = do
   let
@@ -86,7 +86,7 @@ fromColored f (n, mr) =
     Just r ->
       R r
 
-assemblyOfTerm :: Term X64.Prim X64.Name a -> Either (X64Error n a) [Instruction]
+assemblyOfTerm :: Term () X64.Prim X64.Name a -> Either (X64Error n a) [Instruction]
 assemblyOfTerm = \case
   Return _ (Copy _ [Variable _ (R RAX)]) ->
     pure [ Ret ]
@@ -99,7 +99,7 @@ assemblyOfTerm = \case
       <$> assemblyOfTail [Register64 RAX] tl
       <*> pure [ Ret ]
 
-  If _ (Variable _ (R i)) t (Return _ (Call _ (L e) [])) ->
+  If _ () (Variable _ (R i)) t (Return _ (Call _ (L e) [])) ->
     let
       preamble =
         [ Test (Register64 i) (Register64 i)
@@ -107,7 +107,7 @@ assemblyOfTerm = \case
     in
       (preamble ++) <$> assemblyOfTerm t
 
-  If a i t e ->
+  If a () i t e ->
     Left $ MalformedIf a i t e
 
   Let a ns tl tm -> do
@@ -121,7 +121,7 @@ assemblyOfTerm = \case
       <$> assemblyOfTerm tm
       <*> assemblyOfBindings bs
 
-assemblyOfBindings :: Bindings X64.Prim X64.Name a -> Either (X64Error n a) [Instruction]
+assemblyOfBindings :: Bindings () X64.Prim X64.Name a -> Either (X64Error n a) [Instruction]
 assemblyOfBindings = \case
   Bindings a nbs ->
     let
@@ -134,7 +134,7 @@ assemblyOfBindings = \case
     in
       concat <$> traverse go nbs
 
-assemblyOfBinding :: Binding X64.Prim X64.Name a -> Either (X64Error n a) [Instruction]
+assemblyOfBinding :: Binding () X64.Prim X64.Name a -> Either (X64Error n a) [Instruction]
 assemblyOfBinding = \case
   Lambda _ _ tm ->
     assemblyOfTerm tm

@@ -11,16 +11,16 @@ module River.Core.Annotation (
 import           River.Core.Syntax
 
 
-annotOfProgram :: Program p n a -> a
+annotOfProgram :: Program k p n a -> a
 annotOfProgram = \case
   Program a _ ->
     a
 
-annotOfTerm :: Term p n a -> a
+annotOfTerm :: Term k p n a -> a
 annotOfTerm = \case
   Return a _ ->
     a
-  If a _ _ _ ->
+  If a _ _ _ _ ->
     a
   Let a _ _ _ ->
     a
@@ -43,12 +43,12 @@ annotOfAtom = \case
   Variable a _ ->
     a
 
-annotOfBindings :: Bindings p n a -> a
+annotOfBindings :: Bindings k p n a -> a
 annotOfBindings = \case
   Bindings a _ ->
     a
 
-annotOfBinding :: Binding p n a -> a
+annotOfBinding :: Binding k p n a -> a
 annotOfBinding = \case
   Lambda a _ _ ->
     a

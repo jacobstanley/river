@@ -23,16 +23,16 @@ data AssimilateError n a =
 
 assimilateProgram ::
   FreshName n =>
-  Program Core.Prim n a ->
-  ExceptT (AssimilateError n a) Fresh (Program X64.Prim n a)
+  Program k Core.Prim n a ->
+  ExceptT (AssimilateError n a) Fresh (Program k X64.Prim n a)
 assimilateProgram = \case
   Program a tm ->
     Program a <$> assimilateTerm tm
 
 assimilateTerm ::
   FreshName n =>
-  Term Core.Prim n a ->
-  ExceptT (AssimilateError n a) Fresh (Term X64.Prim n a)
+  Term k Core.Prim n a ->
+  ExceptT (AssimilateError n a) Fresh (Term k X64.Prim n a)
 assimilateTerm = \case
   Return ar (Call ac n xs) ->
     pure $
@@ -46,8 +46,8 @@ assimilateTerm = \case
     pure . let_tail $
       Return a (Copy a [Variable a n])
 
-  If a i t e -> do
-    If a i
+  If a k i t e -> do
+    If a k i
       <$> assimilateTerm t
       <*> assimilateTerm e
 
@@ -62,16 +62,16 @@ assimilateTerm = \case
 
 assimilateBindings ::
   FreshName n =>
-  Bindings Core.Prim n a ->
-  ExceptT (AssimilateError n a) Fresh (Bindings X64.Prim n a)
+  Bindings k Core.Prim n a ->
+  ExceptT (AssimilateError n a) Fresh (Bindings k X64.Prim n a)
 assimilateBindings = \case
   Bindings a bs ->
     Bindings a <$> traverse (secondA assimilateBinding) bs
 
 assimilateBinding ::
   FreshName n =>
-  Binding Core.Prim n a ->
-  ExceptT (AssimilateError n a) Fresh (Binding X64.Prim n a)
+  Binding k Core.Prim n a ->
+  ExceptT (AssimilateError n a) Fresh (Binding k X64.Prim n a)
 assimilateBinding = \case
   Lambda a ns tm ->
     Lambda a ns <$> assimilateTerm tm
@@ -81,7 +81,7 @@ assimilateTail ::
   a ->
   [n] ->
   Tail Core.Prim n a ->
-  ExceptT (AssimilateError n a) Fresh (Term X64.Prim n a -> Term X64.Prim n a)
+  ExceptT (AssimilateError n a) Fresh (Term k X64.Prim n a -> Term k X64.Prim n a)
 assimilateTail an ns = \case
   Copy ac xs ->
     pure $
@@ -155,7 +155,7 @@ assimilateComplexPrim ::
   ExceptT
     (AssimilateError n a)
     Fresh
-    (Term X64.Prim n a -> Term X64.Prim n a)
+    (Term k X64.Prim n a -> Term k X64.Prim n a)
 assimilateComplexPrim an ns ap p xs =
   case (ns, p, xs) of
     ([dst], Core.Mul, [x, y]) -> do

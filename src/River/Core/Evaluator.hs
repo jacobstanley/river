@@ -31,20 +31,20 @@ data RuntimeError n a =
 
 data Value n a =
     VInt64 !Int64
-  | VLambda ![n] !(Term Prim n a)
+  | VLambda ![n] !(Term () Prim n a)
     deriving (Eq, Ord, Show, Functor)
 
-evaluateProgram :: Ord n => Program Prim n a -> Either (RuntimeError n a) [Value n a]
+evaluateProgram :: Ord n => Program () Prim n a -> Either (RuntimeError n a) [Value n a]
 evaluateProgram = \case
   Program _ tm ->
     evaluateTerm Map.empty tm
 
-evaluateTerm :: Ord n => Map n (Value n a) -> Term Prim n a -> Either (RuntimeError n a) [Value n a]
+evaluateTerm :: Ord n => Map n (Value n a) -> Term () Prim n a -> Either (RuntimeError n a) [Value n a]
 evaluateTerm env0 = \case
   Return _ tl ->
     evaluateTail env0 tl
 
-  If a i0 t e -> do
+  If a () i0 t e -> do
     i <- evaluateAtom env0 i0
     case i of
       VInt64 0 ->
@@ -77,7 +77,7 @@ evaluateTerm env0 = \case
     in
       evaluateTerm env tm
 
-evaluateBinding :: Binding Prim n a -> Value n a
+evaluateBinding :: Binding () Prim n a -> Value n a
 evaluateBinding = \case
   Lambda _ ns tm ->
     VLambda ns tm

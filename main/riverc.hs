@@ -166,25 +166,26 @@ dump path = do
       putStrLn "-- Core (with x86-64 primitives) --"
       putStrLn ""
       putStrLn . fromE eassim $
-        Core.displayProgram' X64.ppPrim Core.ppName
+        Core.displayProgram' Core.ppKEmpty X64.ppPrim Core.ppName
 
       putStrLn ""
       putStrLn "-- Core (after else hoisting) --"
       putStrLn ""
       putStrLn . fromE eelse $
-        Core.displayProgram' X64.ppPrim Core.ppName
+        Core.displayProgram' Core.ppKEmpty X64.ppPrim Core.ppName
 
       putStrLn ""
       putStrLn "-- Core (in grail normal form) --"
       putStrLn ""
       putStrLn . fromE egrail $
-        Core.displayProgram' X64.ppPrim Core.ppName
+        Core.displayProgram' Core.ppKEmpty X64.ppPrim Core.ppName
 
       putStrLn ""
       putStrLn "-- Core (after precoloring) --"
       putStrLn ""
       putStrLn . fromE eprecolored $
-        Core.displayProgram' X64.ppPrim (Core.ppColor Core.ppName X64.ppRegister64)
+        Core.displayProgram' Core.ppKEmpty X64.ppPrim
+          (Core.ppColor Core.ppName X64.ppRegister64)
 
       putStrLn ""
       putStrLn "-- Interference Graph --"
@@ -198,14 +199,16 @@ dump path = do
       putStrLn "-- Registers Allocated --"
       putStrLn ""
       putStrLn . fromE ecolored $
-        Core.displayProgram' X64.ppPrim (either Core.ppName X64.ppRegister64) .
+        Core.displayProgram' Core.ppKEmpty X64.ppPrim
+          (either Core.ppName X64.ppRegister64) .
         first fromColored
 
       putStrLn ""
       putStrLn "-- Registers Coalesced --"
       putStrLn ""
       putStrLn . fromE ecolored $
-        Core.displayProgram' X64.ppPrim (either Core.ppName X64.ppRegister64) .
+        Core.displayProgram' Core.ppKEmpty X64.ppPrim
+          (either Core.ppName X64.ppRegister64) .
         coalesceProgram .
         first fromColored
 

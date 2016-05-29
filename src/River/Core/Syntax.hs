@@ -47,15 +47,15 @@ import           Data.Typeable (Typeable)
 import           GHC.Generics (Generic)
 
 
-data Program p n a =
-    Program !a !(Term p n a)
+data Program k p n a =
+    Program !a !(Term k p n a)
     deriving (Eq, Ord, Read, Show, Functor, Foldable, Traversable, Data, Typeable, Generic, NFData)
 
-data Term p n a =
+data Term k p n a =
     Return !a !(Tail p n a)
-  | If !a !(Atom n a) !(Term p n a) !(Term p n a)
-  | Let !a ![n] !(Tail p n a) !(Term p n a)
-  | LetRec !a !(Bindings p n a) !(Term p n a)
+  | If !a !k !(Atom n a) !(Term k p n a) !(Term k p n a)
+  | Let !a ![n] !(Tail p n a) !(Term k p n a)
+  | LetRec !a !(Bindings k p n a) !(Term k p n a)
     deriving (Eq, Ord, Read, Show, Functor, Foldable, Traversable, Data, Typeable, Generic, NFData)
 
 data Tail p n a =
@@ -69,12 +69,12 @@ data Atom n a =
   | Variable !a !n
     deriving (Eq, Ord, Read, Show, Functor, Foldable, Traversable, Data, Typeable, Generic, NFData)
 
-data Bindings p n a =
-    Bindings !a [(n, Binding p n a)]
+data Bindings k p n a =
+    Bindings !a [(n, Binding k p n a)]
     deriving (Eq, Ord, Read, Show, Functor, Foldable, Traversable, Data, Typeable, Generic, NFData)
 
-data Binding p n a =
-    Lambda !a ![n] !(Term p n a)
+data Binding k p n a =
+    Lambda !a ![n] !(Term k p n a)
     deriving (Eq, Ord, Read, Show, Functor, Foldable, Traversable, Data, Typeable, Generic, NFData)
 
 $(deriveBifunctor ''Program)

@@ -20,7 +20,7 @@ import           River.Name
 import           River.Source.Syntax
 
 
-coreOfProgram :: Program a -> Core.Program Core.Prim (Name Text) (Maybe a)
+coreOfProgram :: Program a -> Core.Program () Core.Prim (Name Text) (Maybe a)
 coreOfProgram = \case
   Program a b ->
     runFresh $
@@ -33,7 +33,7 @@ coreOfProgram = \case
 coreOfBlock ::
   Core.Tail Core.Prim (Name Text) (Maybe a) ->
   Block a ->
-  Fresh (Core.Term Core.Prim (Name Text) (Maybe a))
+  Fresh (Core.Term () Core.Prim (Name Text) (Maybe a))
 coreOfBlock finish = \case
   Block _ ss ->
     coreOfStatements finish ss
@@ -41,7 +41,7 @@ coreOfBlock finish = \case
 coreOfStatements ::
   Core.Tail Core.Prim (Name Text) (Maybe a) ->
   [Statement a] ->
-  Fresh (Core.Term Core.Prim (Name Text) (Maybe a))
+  Fresh (Core.Term () Core.Prim (Name Text) (Maybe a))
 coreOfStatements finish = \case
   [] ->
     pure $
@@ -82,7 +82,7 @@ coreOfStatements finish = \case
     pure $
       Core.LetRec Nothing bindings $
       term_let_if $
-      Core.If (Just a) (Core.Variable (Just a) n)
+      Core.If (Just a) () (Core.Variable (Just a) n)
         term_then
         term_else
 
@@ -116,7 +116,7 @@ coreOfStatements finish = \case
     let
       term_while =
         term_let_if $
-        Core.If (Just a) (Core.Variable (Just a) n)
+        Core.If (Just a) () (Core.Variable (Just a) n)
           term_body
           term_call_rest
 
@@ -146,8 +146,8 @@ coreOfExpression ::
   Name Text ->
   Expression a ->
   Fresh
-    (Core.Term Core.Prim (Name Text) (Maybe a) ->
-     Core.Term Core.Prim (Name Text) (Maybe a))
+    (Core.Term () Core.Prim (Name Text) (Maybe a) ->
+     Core.Term () Core.Prim (Name Text) (Maybe a))
 coreOfExpression dst = \case
   Literal a (LiteralInt x) ->
     pure $

@@ -17,7 +17,7 @@ import           River.Core.Scope
 import           River.Core.Syntax
 
 
-coalesceProgram :: Ord n => Program p n a -> Program p n a
+coalesceProgram :: Ord n => Program k p n a -> Program k p n a
 coalesceProgram = \case
   Program a tm ->
     Program a .
@@ -28,8 +28,8 @@ coalesceProgram = \case
 coalesceTerm ::
   Ord n =>
   Map n (Atom n (Free n a)) ->
-  Term p n (Free n a) ->
-  Term p n (Free n a)
+  Term k p n (Free n a) ->
+  Term k p n (Free n a)
 coalesceTerm env0 tm0 =
   let
     nextEnv ns =
@@ -37,9 +37,9 @@ coalesceTerm env0 tm0 =
         names =
           Set.fromList ns
 
-        -- k is bound to one of the names which we are binding
-        bound k =
-          Set.member k names
+        -- n is bound to one of the names which we are binding
+        bound n =
+          Set.member n names
 
         -- v references one of the names which we are binding
         references v =
@@ -49,8 +49,8 @@ coalesceTerm env0 tm0 =
             Immediate _ _ ->
               False
 
-        fresh k v =
-          not (bound k || references v)
+        fresh n v =
+          not (bound n || references v)
       in
         Map.filterWithKey fresh env0
   in
@@ -123,8 +123,8 @@ coalesceTerm env0 tm0 =
       Return a tl ->
         Return a tl
 
-      If a i t e ->
-        If a i
+      If a k i t e ->
+        If a k i
           (coalesceTerm env0 t)
           (coalesceTerm env0 e)
 
@@ -136,8 +136,8 @@ coalesceTerm env0 tm0 =
 coalesceBindings ::
   Ord n =>
   Map n (Atom n (Free n a)) ->
-  Bindings p n (Free n a) ->
-  Bindings p n (Free n a)
+  Bindings k p n (Free n a) ->
+  Bindings k p n (Free n a)
 coalesceBindings env = \case
   Bindings a bs ->
     Bindings a $ fmap (second (coalesceBinding env)) bs
@@ -145,8 +145,8 @@ coalesceBindings env = \case
 coalesceBinding ::
   Ord n =>
   Map n (Atom n (Free n a)) ->
-  Binding p n (Free n a) ->
-  Binding p n (Free n a)
+  Binding k p n (Free n a) ->
+  Binding k p n (Free n a)
 coalesceBinding env = \case
   -- TODO dead parameter removal, probably a separate pass
   Lambda a ns tm ->

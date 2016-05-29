@@ -27,7 +27,7 @@ data RegisterError n =
     RegistersExhausted !n
     deriving (Eq, Ord, Show)
 
-colorByRegister :: Ord n => ColorStrategy (RegisterError n) Register64 Prim n a
+colorByRegister :: Ord n => ColorStrategy (RegisterError n) Register64 k Prim n a
 colorByRegister =
   ColorStrategy {
       unusedColor =
@@ -45,8 +45,8 @@ colorByRegister =
 precoloredOfProgram ::
   Ord n =>
   FreshName n =>
-  Program Prim n a ->
-  Fresh (Map n Register64, Program Prim n a)
+  Program k Prim n a ->
+  Fresh (Map n Register64, Program k Prim n a)
 precoloredOfProgram = \case
   Program a tm0 -> do
     (tm, rs) <- runStateT (precoloredOfTerm tm0) Map.empty
@@ -60,16 +60,16 @@ putsert k v = do
 precoloredOfTerm ::
   Ord n =>
   FreshName n =>
-  Term Prim n a ->
-  StateT (Map n Register64) Fresh (Term Prim n a)
+  Term k Prim n a ->
+  StateT (Map n Register64) Fresh (Term k Prim n a)
 precoloredOfTerm = \case
   -- TODO ensure in RAX
   Return at tl ->
     pure $
       Return at tl
 
-  If at i t0 e0 ->
-    If at i
+  If at k i t0 e0 ->
+    If at k i
       <$> precoloredOfTerm t0
       <*> precoloredOfTerm e0
 
@@ -139,8 +139,8 @@ precoloredOfTerm = \case
 precoloredOfBindings ::
   Ord n =>
   FreshName n =>
-  Bindings Prim n a ->
-  StateT (Map n Register64) Fresh (Bindings Prim n a)
+  Bindings k Prim n a ->
+  StateT (Map n Register64) Fresh (Bindings k Prim n a)
 precoloredOfBindings = \case
   Bindings a nbs0 -> do
     let
@@ -153,8 +153,8 @@ precoloredOfBindings = \case
 precoloredOfBinding ::
   Ord n =>
   FreshName n =>
-  Binding Prim n a ->
-  StateT (Map n Register64) Fresh (Binding Prim n a)
+  Binding k Prim n a ->
+  StateT (Map n Register64) Fresh (Binding k Prim n a)
 precoloredOfBinding = \case
   Lambda a ns tm -> do
     Lambda a ns

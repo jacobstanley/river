@@ -37,18 +37,18 @@ data ColorError e n =
   | StrategyError !e
     deriving (Eq, Ord, Show)
 
-data ColorStrategy e c p n a =
+data ColorStrategy e c k p n a =
   ColorStrategy {
       -- | Given the binding and the set of colors in use by neighbors, return
       --   the color to assign to the current variable.
       unusedColor :: n -> Set c -> Either e c
 
       -- | Given a program, find the names that are pre-colored.
-    , precolored :: FreshName n => Program p n a -> Fresh (Map n c, Program p n a)
+    , precolored :: FreshName n => Program k p n a -> Fresh (Map n c, Program k p n a)
     }
 
 -- | Simple coloring strategy which colors the graph using integers.
-colorByInt :: ColorStrategy Void Int p n a
+colorByInt :: ColorStrategy Void Int k p n a
 colorByInt =
   ColorStrategy {
       unusedColor =
@@ -64,9 +64,9 @@ coloredOfProgram ::
   Ord c =>
   Ord n =>
   FreshName n =>
-  ColorStrategy e c p n a ->
-  Program p n a ->
-  Either (ColorError e n) (Program p (n, Maybe c) a)
+  ColorStrategy e c k p n a ->
+  Program k p n a ->
+  Either (ColorError e n) (Program k p (n, Maybe c) a)
 coloredOfProgram strategy p0 = do
   let
     lookupName colors n =
@@ -83,9 +83,9 @@ precoloredOfProgram ::
   Ord c =>
   Ord n =>
   FreshName n =>
-  ColorStrategy e c p n a ->
-  Program p n a ->
-  Program p (n, Maybe c) a
+  ColorStrategy e c k p n a ->
+  Program k p n a ->
+  Program k p (n, Maybe c) a
 precoloredOfProgram strategy p0 =
   let
     (colors, p) =
@@ -108,13 +108,13 @@ precoloredOfProgram strategy p0 =
 --   Simplical elimination ordering method.
 --
 colorsOfProgram ::
-  forall e c p n a.
+  forall e c k p n a.
   Ord c =>
   Ord n =>
   FreshName n =>
-  ColorStrategy e c p n a ->
-  Program p n a ->
-  Either (ColorError e n) (Map n c, Program p n a)
+  ColorStrategy e c k p n a ->
+  Program k p n a ->
+  Either (ColorError e n) (Map n c, Program k p n a)
 colorsOfProgram strategy p0 = do
   let
     (colors0, p) =
@@ -169,16 +169,16 @@ colorsOfProgram strategy p0 = do
 --
 --   1. Sebastian Hack. Register Allocation for Programs in SSA Form, 2007
 --
-orderingOfProgram :: Program p n a -> [n]
+orderingOfProgram :: Program k p n a -> [n]
 orderingOfProgram = \case
   Program _ tm ->
     orderingOfTerm tm
 
-orderingOfTerm :: Term p n a -> [n]
+orderingOfTerm :: Term k p n a -> [n]
 orderingOfTerm = \case
   Return _ _ ->
     []
-  If _ _ t e ->
+  If _ _ _ t e ->
     orderingOfTerm t ++
     orderingOfTerm e
   Let _ ns _ tm ->
@@ -188,12 +188,12 @@ orderingOfTerm = \case
     orderingOfBindings bs ++
     orderingOfTerm tm
 
-orderingOfBindings :: Bindings p n a -> [n]
+orderingOfBindings :: Bindings k p n a -> [n]
 orderingOfBindings = \case
   Bindings _ bs ->
     concatMap (orderingOfBinding . snd) bs
 
-orderingOfBinding :: Binding p n a -> [n]
+orderingOfBinding :: Binding k p n a -> [n]
 orderingOfBinding = \case
   Lambda _ ns tm ->
     ns ++

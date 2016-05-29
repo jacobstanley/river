@@ -18,18 +18,18 @@ import           River.Core.Syntax
 import           River.Fresh
 
 
-renameProgram :: (Ord n, FreshName n, MonadFresh m) => Program p n a -> m (Program p n a)
+renameProgram :: (Ord n, FreshName n, MonadFresh m) => Program k p n a -> m (Program k p n a)
 renameProgram = \case
   Program a tm ->
     flip evalStateT Set.empty $
       Program a <$> renameTerm Map.empty tm
 
-renameTerm :: (Ord n, FreshName n, MonadFresh m) => Map n n -> Term p n a -> StateT (Set n) m (Term p n a)
+renameTerm :: (Ord n, FreshName n, MonadFresh m) => Map n n -> Term k p n a -> StateT (Set n) m (Term k p n a)
 renameTerm subs0 = \case
   Return a tl ->
     pure . Return a $ renameTail subs0 tl
 
-  If a i0 t0 e0 -> do
+  If a k i0 t0 e0 -> do
     let
       i = renameAtom subs0 i0
 
@@ -37,7 +37,7 @@ renameTerm subs0 = \case
     e <- renameTerm subs0 e0
 
     pure $
-      If a i t e
+      If a k i t e
 
   Let a ns0 tl0 tm -> do
     let
@@ -50,7 +50,7 @@ renameTerm subs0 = \case
     (subs, bs) <- renameBindings subs0 bs0
     LetRec a bs <$> renameTerm subs tm
 
-renameBindings :: (Ord n, FreshName n, MonadFresh m) => Map n n -> Bindings p n a -> StateT (Set n) m (Map n n, Bindings p n a)
+renameBindings :: (Ord n, FreshName n, MonadFresh m) => Map n n -> Bindings k p n a -> StateT (Set n) m (Map n n, Bindings k p n a)
 renameBindings subs0 = \case
   Bindings a nbs0 -> do
     let
@@ -66,7 +66,7 @@ renameBindings subs0 = \case
 
     pure (subs, Bindings a nbs)
 
-renameBinding :: (Ord n, FreshName n, MonadFresh m) => Map n n -> Binding p n a -> StateT (Set n) m (Binding p n a)
+renameBinding :: (Ord n, FreshName n, MonadFresh m) => Map n n -> Binding k p n a -> StateT (Set n) m (Binding k p n a)
 renameBinding subs0 = \case
   Lambda a ns0 tm -> do
     (subs, ns) <- renameNames subs0 ns0

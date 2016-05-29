@@ -12,16 +12,16 @@ import           River.Core.Syntax
 import           River.Fresh
 
 
-nextOfProgram :: FreshName n => Program p n a -> Int
+nextOfProgram :: FreshName n => Program k p n a -> Int
 nextOfProgram = \case
   Program _ tm ->
     nextOfTerm tm
 
-nextOfTerm :: FreshName n => Term p n a -> Int
+nextOfTerm :: FreshName n => Term k p n a -> Int
 nextOfTerm = \case
   Return _ tl ->
     nextOfTail tl
-  If _ i t e ->
+  If _ _ i t e ->
     nextOfAtom i `max`
     nextOfTerm t `max`
     nextOfTerm e
@@ -34,7 +34,7 @@ nextOfTerm = \case
     nextOfBindings bs `max`
     nextOfTerm tm
 
-nextOfBindings :: FreshName n => Bindings p n a -> Int
+nextOfBindings :: FreshName n => Bindings k p n a -> Int
 nextOfBindings = \case
   Bindings _ bs ->
     let
@@ -45,7 +45,7 @@ nextOfBindings = \case
     in
       foldl' go 0 bs
 
-nextOfBinding :: FreshName n => Binding p n a -> Int
+nextOfBinding :: FreshName n => Binding k p n a -> Int
 nextOfBinding = \case
   Lambda _ ns tm ->
     foldl' max 0 $

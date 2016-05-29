@@ -11,10 +11,12 @@ module River.Core.Pretty (
   , ppTail
   , ppAtom
 
+  , ppPrim
   , ppName
   , ppIntName
   , ppColor
   , ppColor'
+  , ppKEmpty
   ) where
 
 import           Data.Text (Text)
@@ -52,18 +54,19 @@ data OutputAnnot =
 
 ------------------------------------------------------------------------
 
-displayProgram :: Program Prim (Name Text) a -> String
+displayProgram :: Program () Prim (Name Text) a -> String
 displayProgram =
-  displayProgram' ppPrim ppName
+  displayProgram' ppKEmpty ppPrim ppName
 
 displayProgram' ::
+  (k -> Doc OutputAnnot) ->
   (p -> Doc OutputAnnot) ->
   (n -> Doc OutputAnnot) ->
-  Program p n a ->
+  Program k p n a ->
   String
-displayProgram' ppP ppN program =
+displayProgram' ppK ppP ppN program =
   displayDoc $
-    ppProgram ppP ppN program
+    ppProgram ppK ppP ppN program
 
 displayDoc :: Doc OutputAnnot -> String
 displayDoc =
@@ -99,44 +102,60 @@ displayDoc =
 
 ------------------------------------------------------------------------
 
-ppProgram :: (p -> Doc OutputAnnot) -> (n -> Doc OutputAnnot) -> Program p n a -> Doc OutputAnnot
-ppProgram ppP ppN = \case
+ppProgram ::
+  (k -> Doc OutputAnnot) ->
+  (p -> Doc OutputAnnot) ->
+  (n -> Doc OutputAnnot) ->
+  Program k p n a ->
+  Doc OutputAnnot
+ppProgram ppK ppP ppN = \case
   Program _ tm ->
     ppKeyword "letrec" <+> annotate AnnFunction "main" <+> ppEquals <$$>
-    indent 2 (ppTerm ppP ppN tm)
+    indent 2 (ppTerm ppK ppP ppN tm)
 
-ppTerm :: (p -> Doc OutputAnnot) -> (n -> Doc OutputAnnot) -> Term p n a -> Doc OutputAnnot
-ppTerm ppP ppN = \case
+ppTerm ::
+  (k -> Doc OutputAnnot) ->
+  (p -> Doc OutputAnnot) ->
+  (n -> Doc OutputAnnot) ->
+  Term k p n a ->
+  Doc OutputAnnot
+ppTerm ppK ppP ppN = \case
   Return _ tl ->
     ppKeyword "return" <+> ppTail ppP ppN tl
 
-  If _ i t e ->
+  If _ k i t e ->
     vcat [
-        ppKeyword "if" <+> ppAtom ppN i <+> ppKeyword "then"
-      , indent 2 $ ppTerm ppP ppN t
+        ppKeyword "if" <> ppK k <+> ppAtom ppN i <+> ppKeyword "then"
+      , indent 2 $ ppTerm ppK ppP ppN t
       , ppKeyword "else"
-      , indent 2 $ ppTerm ppP ppN e
+      , indent 2 $ ppTerm ppK ppP ppN e
       ]
 
   Let _ ns tl tm ->
     ppNames ppN ns <+> ppEquals <+> ppTail ppP ppN tl <$$>
-    ppTerm ppP ppN tm
+    ppTerm ppK ppP ppN tm
 
   LetRec _ (Bindings _ bs) tm ->
     vcat [
         ppKeyword "letrec"
-      , indent 2 . vcat . List.intersperse empty $ fmap (uncurry $ ppBinding ppP ppN) bs
+      , indent 2 . vcat . List.intersperse empty $ fmap (uncurry $ ppBinding ppK ppP ppN) bs
       , ppKeyword "in"
-      , indent 2 $ ppTerm ppP ppN tm
+      , indent 2 $ ppTerm ppK ppP ppN tm
       ]
 
-ppBinding :: (p -> Doc OutputAnnot) -> (n -> Doc OutputAnnot) -> n -> Binding p n a -> Doc OutputAnnot
-ppBinding ppP ppN n = \case
+ppBinding ::
+  (k -> Doc OutputAnnot) ->
+  (p -> Doc OutputAnnot) ->
+  (n -> Doc OutputAnnot) ->
+  n ->
+  Binding k p n a ->
+  Doc OutputAnnot
+ppBinding ppK ppP ppN n = \case
   Lambda _ ns tm ->
     annotate AnnFunction (ppN n) <+>
     ppNames ppN ns <+>
     ppEquals <$$>
-    indent 2 (ppTerm ppP ppN tm)
+    indent 2 (ppTerm ppK ppP ppN tm)
 
 ppNames :: (n -> Doc OutputAnnot) -> [n] -> Doc OutputAnnot
 ppNames ppN = \case
@@ -252,6 +271,10 @@ ppEquals =
 ppUnit :: Doc OutputAnnot
 ppUnit =
   annotate AnnOperator (text "()")
+
+ppKEmpty :: () -> Doc OutputAnnot
+ppKEmpty _ =
+  empty
 
 ppKeyword :: String -> Doc OutputAnnot
 ppKeyword =

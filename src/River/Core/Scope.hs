@@ -26,17 +26,17 @@ import           River.Core.Syntax
 
 ------------------------------------------------------------------------
 
-freeOfProgram :: Ord n => Program p n a -> Set n
+freeOfProgram :: Ord n => Program k p n a -> Set n
 freeOfProgram = \case
   Program _ tm ->
     freeOfTerm tm
 
-freeOfTerm :: Ord n => Term p n a -> Set n
+freeOfTerm :: Ord n => Term k p n a -> Set n
 freeOfTerm = \case
   Return _ tl ->
     freeOfTail tl
 
-  If _ i t e ->
+  If _ _ i t e ->
     freeOfAtom i `Set.union`
     freeOfTerm t `Set.union`
     freeOfTerm e
@@ -51,17 +51,17 @@ freeOfTerm = \case
       (freeOfBindings bs `Set.union` freeOfTerm tm)
       (boundOfBindings bs)
 
-boundOfBindings :: Ord n => Bindings p n a -> Set n
+boundOfBindings :: Ord n => Bindings k p n a -> Set n
 boundOfBindings = \case
   Bindings _ bs ->
     Set.fromList $ fmap fst bs
 
-freeOfBindings :: Ord n => Bindings p n a -> Set n
+freeOfBindings :: Ord n => Bindings k p n a -> Set n
 freeOfBindings = \case
   Bindings _ bs ->
     Set.unions $ fmap (freeOfBinding . snd) bs
 
-freeOfBinding :: Ord n => Binding p n a -> Set n
+freeOfBinding :: Ord n => Binding k p n a -> Set n
 freeOfBinding = \case
   Lambda _ ns tm ->
     freeOfTerm tm `Set.difference` Set.fromList ns
@@ -90,7 +90,7 @@ data Free n a =
     , freeTail :: !a
     } deriving (Eq, Ord, Show, Functor)
 
-annotFreeOfProgram :: Ord n => Program p n a -> Program p n (Free n a)
+annotFreeOfProgram :: Ord n => Program k p n a -> Program k p n (Free n a)
 annotFreeOfProgram = \case
   Program a tm0 ->
     let
@@ -102,7 +102,7 @@ annotFreeOfProgram = \case
     in
       Program (Free free a) tm
 
-annotFreeOfTerm :: Ord n => Term p n a -> Term p n (Free n a)
+annotFreeOfTerm :: Ord n => Term k p n a -> Term k p n (Free n a)
 annotFreeOfTerm = \case
   Return a tl0 ->
     let
@@ -114,7 +114,7 @@ annotFreeOfTerm = \case
     in
       Return (Free free a) tl
 
-  If a i0 t0 e0 ->
+  If a k i0 t0 e0 ->
     let
       i =
         annotFreeOfAtom i0
@@ -130,7 +130,7 @@ annotFreeOfTerm = \case
         freeVars (annotOfTerm t) `Set.union`
         freeVars (annotOfTerm e)
     in
-      If (Free free a) i t e
+      If (Free free a) k i t e
 
   Let a ns tl0 tm0 ->
     let
@@ -162,7 +162,7 @@ annotFreeOfTerm = \case
     in
       LetRec (Free free a) bs tm
 
-annotFreeOfBindings :: Ord n => Bindings p n a -> Bindings p n (Free n a)
+annotFreeOfBindings :: Ord n => Bindings k p n a -> Bindings k p n (Free n a)
 annotFreeOfBindings = \case
   Bindings a bs0 ->
     let
@@ -174,7 +174,7 @@ annotFreeOfBindings = \case
     in
       Bindings (Free free a) bs
 
-annotFreeOfBinding :: Ord n => Binding p n a -> Binding p n (Free n a)
+annotFreeOfBinding :: Ord n => Binding k p n a -> Binding k p n (Free n a)
 annotFreeOfBinding = \case
   Lambda a ns tm0 ->
     let
