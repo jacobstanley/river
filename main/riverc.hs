@@ -77,10 +77,10 @@ eval :: FilePath -> IO ()
 eval path = do
   p <- runExceptT $ parseProgram path
   case p of
-    Left (TrifectaError xx) ->
-      print xx
+    Left xx ->
+      T.putStrLn . flip ppParseError xx . T.lines =<< T.readFile path
     Right concrete ->
-      either (print . fmap (fmap locationOfDelta)) print .
+      either print print .
       evaluateProgram $
       coreOfProgram $
       elaborateProgram concrete
@@ -92,8 +92,8 @@ dump path = do
 
   p <- runExceptT $ parseProgram path
   case p of
-    Left (TrifectaError xx) ->
-      print xx
+    Left xx ->
+      T.putStrLn . flip ppParseError xx . T.lines =<< T.readFile path
     Right concrete -> do
 
       let
@@ -110,8 +110,7 @@ dump path = do
         errors =
           List.sort .
           concatMap ppCheckError .
-          checkProgram .
-          fmap locationOfDelta $
+          checkProgram $
           abstract
 
         core =
@@ -221,7 +220,7 @@ dump path = do
       putStrLn ""
       putStrLn "-- Core Eval --"
       putStrLn ""
-      either (print . fmap (fmap locationOfDelta)) print $
+      either print print $
         evaluateProgram core
 
       putStrLn ""

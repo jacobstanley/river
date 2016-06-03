@@ -8,6 +8,8 @@ module River.Core.Example (
   , liveness_term
   ) where
 
+import           Control.Monad.Trans.Except (runExceptT)
+
 import           Data.Text (Text)
 
 import           River.Core.Primitive
@@ -17,8 +19,9 @@ import           River.Source.Concrete.Parser
 import           River.Source.Elaborate
 import           River.Source.ToCore
 
-import           Control.Monad.Trans.Except (runExceptT)
 import           System.IO.Unsafe (unsafePerformIO)
+
+import qualified Text.Megaparsec as Mega
 
 
 alpaca_program :: Program () Prim (Name Text) ()
@@ -42,8 +45,8 @@ fromPath path =
   unsafePerformIO $ do
     e <- runExceptT $ parseProgram path
     case e of
-      Left (TrifectaError xx) ->
-        error $ show xx
+      Left xx ->
+        error $ Mega.parseErrorPretty xx
       Right p ->
         return . (() <$) . coreOfProgram $ elaborateProgram p
 

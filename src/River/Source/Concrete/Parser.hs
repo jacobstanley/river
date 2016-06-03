@@ -1,399 +1,333 @@
+{-# LANGUAGE ConstraintKinds #-}
+{-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE StandaloneDeriving #-}
+{-# LANGUAGE TypeFamilies #-}
 module River.Source.Concrete.Parser (
-    ParseError(..)
-  , parseProgram
+    parseProgram
   , parseProgram'
-
-  , reservedNames
-
-  , fileOfDelta
-  , lineOfDelta
-  , columnOfDelta
   ) where
 
 import           Control.Applicative (Alternative(..))
-import           Control.Monad (MonadPlus(..))
+import           Control.Monad (void)
+import           Control.Monad.IO.Class (liftIO)
 import           Control.Monad.Trans.Except (ExceptT(..))
 
-import qualified Data.ByteString.UTF8 as UTF8
-import           Data.HashSet (HashSet)
-import qualified Data.HashSet as HashSet
+import           Data.Set (Set)
+import qualified Data.Set as Set
 import qualified Data.Text as T
+import qualified Data.Text.IO as T
 
-import           Text.Parser.Expression (Operator(..), Assoc(..))
-import           Text.Parser.Expression (buildExpressionParser)
-import qualified Text.Parser.Token.Highlight as Highlight
-import           Text.Parser.Token.Style (CommentStyle(..))
-import           Text.Parser.Token.Style (buildSomeSpaceParser)
-import qualified Text.PrettyPrint.ANSI.Leijen as ANSI
-import           Text.Trifecta ((<?>))
-import           Text.Trifecta (CharParsing(..), TokenParsing(..))
-import           Text.Trifecta (IdentifierStyle(..))
-import           Text.Trifecta (MarkParsing(..), DeltaParsing(..))
-import           Text.Trifecta (Parsing(..), Parser(..), Result(..))
-import           Text.Trifecta (letter, alphaNum, whiteSpace)
-import           Text.Trifecta (reserve, ident, natural, symbolic)
-import           Text.Trifecta (parens, braces, optional)
-import qualified Text.Trifecta as Trifecta
-import           Text.Trifecta.Delta (Delta(..))
-import qualified Text.Trifecta.Delta as Trifecta
+import           Text.Megaparsec ((<?>))
+import           Text.Megaparsec (ParseError, Dec, runParser)
+import           Text.Megaparsec (SourcePos, getPosition)
+import           Text.Megaparsec (label, try, optional, between, oneOf)
+import           Text.Megaparsec (eof, spaceChar, letterChar, alphaNumChar, char, char')
+import           Text.Megaparsec.Expr (Operator(..), makeExprParser)
+import qualified Text.Megaparsec.Lexer as Lexer
+import           Text.Megaparsec.Prim (MonadParsec, Token)
 
 import           River.Source.Concrete.Syntax
 
 ------------------------------------------------------------------------
 
-data ParseError =
-    TrifectaError ANSI.Doc
-    deriving (Show)
-
-parseProgram :: FilePath -> ExceptT ParseError IO (Program Delta)
+parseProgram :: FilePath -> ExceptT (ParseError Char Dec) IO (Program SourcePos)
 parseProgram path =
   ExceptT $ do
-    result <- Trifecta.parseFromFileEx (runRiverParser pProgram) path
-    case result of
-      Failure e ->
-        pure . Left $ TrifectaError e
-      Success x ->
-        pure $ Right x
+    source <- liftIO $ T.readFile path
+    pure $ runParser pProgram path source
 
-parseProgram' :: FilePath -> String -> Either ParseError (Program Delta)
+parseProgram' :: FilePath -> String -> Either (ParseError Char Dec) (Program SourcePos)
 parseProgram' name source =
-  let
-    delta =
-      Directed (UTF8.fromString name) 0 0 0 0
-  in
-    case Trifecta.parseString (runRiverParser pProgram) delta source of
-      Failure e ->
-        Left $ TrifectaError e
-      Success x ->
-        Right x
+  runParser pProgram name source
 
 ------------------------------------------------------------------------
 
-pProgram :: RiverParser (Program Delta)
+pProgram :: RiverParser s m => m (Program SourcePos)
 pProgram = do
-  whiteSpace
+  pSpace
   pReserved "int"
 
-  pos <- position
+  pos <- getPosition
   pReserved "main"
-  parens $ pure ()
+  pParens $ pure ()
 
   Program pos <$> pBlock <* eof
 
 ------------------------------------------------------------------------
 
-pBlock :: RiverParser (Block Delta)
+pBlock :: RiverParser s m => m (Block SourcePos)
 pBlock = do
   Block
-    <$> position
-    <*> braces pStatements
+    <$> getPosition
+    <*> pBraces pStatements
 
-pStatements :: RiverParser [Statement Delta]
+pStatements :: RiverParser s m => m [Statement SourcePos]
 pStatements =
   many pStatement
 
-pStatement :: RiverParser (Statement Delta)
+pStatement :: RiverParser s m => m (Statement SourcePos)
 pStatement =
-  (try $ SSimple <$> position <*> pSimple <* semi <?> "simple statement") <|>
-  (try $ SControl <$> position <*> pControl <?> "control statement") <|>
-  (SBlock <$> position <*> pBlock <?> "block")
+  (SSimple <$> getPosition <*> pSimple <* pSemi <?> "simple statement") <|>
+  (SControl <$> getPosition <*> pControl <?> "control statement") <|>
+  (SBlock <$> getPosition <*> pBlock <?> "block")
 
-pSimple :: RiverParser (Simple Delta)
+pSimple :: RiverParser s m => m (Simple SourcePos)
 pSimple =
-  (try $ pAssign <?> "assignment") <|>
-  (try $ pPost <?> "post operation") <|>
+  (pAssignPost <?> "assignment or postfix operation") <|>
   (pDeclare <?> "declaration")
 
-pAssign :: RiverParser (Simple Delta)
-pAssign =
-  Assign
-    <$> position
-    <*> pLValue
-    <*> pAssignOp
+pAssignPost :: RiverParser s m => m (Simple SourcePos)
+pAssignPost = do
+  pos <- getPosition
+  lv <- pLValue
+  pAssign pos lv <|> pPost pos lv
+
+pAssign :: RiverParser s m => SourcePos -> LValue SourcePos -> m (Simple SourcePos)
+pAssign pos lv =
+  Assign pos lv
+    <$> pAssignOp
     <*> pExpression
 
-pPost :: RiverParser (Simple Delta)
-pPost =
-  Post
-    <$> position
-    <*> pLValue
-    <*> pPostOp
+pPost :: RiverParser s m => SourcePos -> LValue SourcePos -> m (Simple SourcePos)
+pPost pos lv =
+  Post pos lv
+    <$> pPostOp
 
-pDeclare :: RiverParser (Simple Delta)
+pDeclare :: RiverParser s m => m (Simple SourcePos)
 pDeclare =
   Declare
-    <$> position
+    <$> getPosition
     <*> pType
     <*> pIdentifier
     <*> optional (pEquals *> pExpression)
 
-pControl :: RiverParser (Control Delta)
+pControl :: RiverParser s m => m (Control SourcePos)
 pControl =
-  (try $ pIf <?> "if statement") <|>
-  (try $ pWhile <?> "while loop") <|>
-  (try $ pFor <?> "for loop") <|>
+  (pIf <?> "if statement") <|>
+  (pWhile <?> "while loop") <|>
+  (pFor <?> "for loop") <|>
   (pReturn <?> "return")
 
-pIf :: RiverParser (Control Delta)
+pIf :: RiverParser s m => m (Control SourcePos)
 pIf =
   let
     pElse =
       pReserved "else" *> pStatement
   in
     If
-      <$> (position <* pReserved "if")
-      <*> parens pExpression
+      <$> (getPosition <* pReserved "if")
+      <*> pParens pExpression
       <*> pStatement
       <*> optional pElse
 
-pWhile :: RiverParser (Control Delta)
+pWhile :: RiverParser s m => m (Control SourcePos)
 pWhile =
   While
-    <$> (position <* pReserved "while")
-    <*> parens pExpression
+    <$> (getPosition <* pReserved "while")
+    <*> pParens pExpression
     <*> pStatement
 
-pFor :: RiverParser (Control Delta)
+pFor :: RiverParser s m => m (Control SourcePos)
 pFor =
   For
-    <$> (position <* pReserved "for" <* symbolic '(')
-    <*> (optional pSimple <* semi)
-    <*> (pExpression <* semi)
-    <*> (optional pSimple <* symbolic ')')
+    <$> (getPosition <* pReserved "for" <* pSymbol "(")
+    <*> (optional pSimple <* pSemi)
+    <*> (pExpression <* pSemi)
+    <*> (optional pSimple <* pSymbol ")")
     <*> pStatement
 
-pAssignOp :: RiverParser AssignOp
+pAssignOp :: RiverParser s m => m AssignOp
 pAssignOp =
-  pOperator "="  *> pure AEq <|>
-  pOperator "+=" *> pure AAdd <|>
-  pOperator "-=" *> pure ASub <|>
-  pOperator "*=" *> pure AMul <|>
-  pOperator "/=" *> pure ADiv <|>
-  pOperator "%=" *> pure AMod <|>
-  pOperator "<<=" *> pure AShl <|>
-  pOperator ">>=" *> pure AShr <|>
-  pOperator "&=" *> pure AAnd <|>
-  pOperator "^=" *> pure AXor <|>
-  pOperator "|=" *> pure AOr
+  pReservedOp "="  *> pure AEq <|>
+  pReservedOp "+=" *> pure AAdd <|>
+  pReservedOp "-=" *> pure ASub <|>
+  pReservedOp "*=" *> pure AMul <|>
+  pReservedOp "/=" *> pure ADiv <|>
+  pReservedOp "%=" *> pure AMod <|>
+  pReservedOp "<<=" *> pure AShl <|>
+  pReservedOp ">>=" *> pure AShr <|>
+  pReservedOp "&=" *> pure AAnd <|>
+  pReservedOp "^=" *> pure AXor <|>
+  pReservedOp "|=" *> pure AOr
 
-pPostOp :: RiverParser PostOp
+pPostOp :: RiverParser s m => m PostOp
 pPostOp =
-  pOperator "++" *> pure Inc <|>
-  pOperator "--" *> pure Dec
+  pReservedOp "++" *> pure Inc <|>
+  pReservedOp "--" *> pure Dec
 
-pReturn :: RiverParser (Control Delta)
+pReturn :: RiverParser s m => m (Control SourcePos)
 pReturn =
   Return
-    <$> position
-    <*> (pReserved "return" *> pExpression) <* semi
+    <$> getPosition
+    <*> (pReserved "return" *> pExpression) <* pSemi
 
 ------------------------------------------------------------------------
 
-pExpression :: RiverParser (Expression Delta)
+pExpression :: RiverParser s m => m (Expression SourcePos)
 pExpression =
-  try pConditional <|> pExpression0
+  try pConditional <|>
+  pExpression0
 
-pConditional :: RiverParser (Expression Delta)
+pConditional :: RiverParser s m => m (Expression SourcePos)
 pConditional =
   Conditional
-    <$> position
-    <*> pExpression0 <* pOperator "?"
-    <*> pExpression  <* pOperator ":"
+    <$> getPosition
+    <*> pExpression0 <* pReservedOp "?"
+    <*> pExpression  <* pReservedOp ":"
     <*> pExpression
 
-pExpression0 :: RiverParser (Expression Delta)
+pExpression0 :: RiverParser s m => m (Expression SourcePos)
 pExpression0 =
-  buildExpressionParser opTable pExpression1 <?> "expression"
+  makeExprParser pExpression1 opTable
 
-pExpression1 :: RiverParser (Expression Delta)
+pExpression1 :: RiverParser s m => m (Expression SourcePos)
 pExpression1 =
-  parens (pExpression) <|>
+  pParens (pExpression) <|>
   try pLiteral <|>
   pVariable
 
-pLiteral :: RiverParser (Expression Delta)
+pLiteral :: RiverParser s m => m (Expression SourcePos)
 pLiteral =
   Literal
-    <$> position
+    <$> getPosition
     <*> (pLiteralInt <|> pLiteralTrue <|> pLiteralFalse)
     <?> "literal"
 
-pLiteralInt :: RiverParser Literal
+pLiteralInt :: RiverParser s m => m Literal
 pLiteralInt =
-  LiteralInt <$> natural <?> "integer"
+  pLiteralHexZero <|>
+  pLiteralDec
 
-pLiteralTrue :: RiverParser Literal
+pLiteralDec :: RiverParser s m => m Literal
+pLiteralDec =
+  LiteralInt <$> pLexeme Lexer.decimal
+
+pLiteralHexZero :: RiverParser s m => m Literal
+pLiteralHexZero =
+  char '0' *> (pLiteralHex <|> pLiteralZero)
+
+pLiteralZero :: RiverParser s m => m Literal
+pLiteralZero =
+  LiteralInt 0 <$ pSpace
+
+pLiteralHex :: RiverParser s m => m Literal
+pLiteralHex =
+  LiteralInt <$> (char' 'x' *> pLexeme Lexer.hexadecimal)
+
+pLiteralTrue :: RiverParser s m => m Literal
 pLiteralTrue =
   LiteralBool <$> (True <$ pReserved "true") <?> "true"
 
-pLiteralFalse :: RiverParser Literal
+pLiteralFalse :: RiverParser s m => m Literal
 pLiteralFalse =
   LiteralBool <$> (False <$ pReserved "false") <?> "false"
 
-pVariable :: RiverParser (Expression Delta)
+pVariable :: RiverParser s m => m (Expression SourcePos)
 pVariable =
-  Variable <$> position <*> pIdentifier <?> "variable"
+  Variable <$> getPosition <*> pIdentifier <?> "variable"
 
-opTable :: DeltaParsing m => [[Operator m (Expression Delta)]]
+------------------------------------------------------------------------
+-- Operator Table
+
+opTable :: RiverParser s m => [[Operator m (Expression SourcePos)]]
 opTable =
   [ [ prefix "!"  (\p -> Unary p LNot)
     , prefix "~"  (\p -> Unary p BNot)
     , prefix "-"  (\p -> Unary p Neg)
     ]
-  , [ binary "*"  (\p -> Binary p Mul) AssocLeft
-    , binary "/"  (\p -> Binary p Div) AssocLeft
-    , binary "%"  (\p -> Binary p Mod) AssocLeft
+  , [ infixL "*"  (\p -> Binary p Mul)
+    , infixL "/"  (\p -> Binary p Div)
+    , infixL "%"  (\p -> Binary p Mod)
     ]
-  , [ binary "+"  (\p -> Binary p Add) AssocLeft
-    , binary "-"  (\p -> Binary p Sub) AssocLeft
+  , [ infixL "+"  (\p -> Binary p Add)
+    , infixL "-"  (\p -> Binary p Sub)
     ]
-  , [ binary "<<" (\p -> Binary p Shl) AssocLeft
-    , binary ">>" (\p -> Binary p Shr) AssocLeft
+  , [ infixL "<<" (\p -> Binary p Shl)
+    , infixL ">>" (\p -> Binary p Shr)
     ]
-  , [ binary "<"  (\p -> Binary p Lt) AssocLeft
-    , binary "<=" (\p -> Binary p Le) AssocLeft
-    , binary ">"  (\p -> Binary p Gt) AssocLeft
-    , binary ">=" (\p -> Binary p Ge) AssocLeft
+  , [ infixL "<"  (\p -> Binary p Lt)
+    , infixL "<=" (\p -> Binary p Le)
+    , infixL ">"  (\p -> Binary p Gt)
+    , infixL ">=" (\p -> Binary p Ge)
     ]
-  , [ binary "==" (\p -> Binary p Eq) AssocLeft
-    , binary "!=" (\p -> Binary p Ne) AssocLeft
+  , [ infixL "==" (\p -> Binary p Eq)
+    , infixL "!=" (\p -> Binary p Ne)
     ]
-  , [ binary "&"  (\p -> Binary p BAnd) AssocLeft
+  , [ infixL "&"  (\p -> Binary p BAnd)
     ]
-  , [ binary "^"  (\p -> Binary p BXor) AssocLeft
+  , [ infixL "^"  (\p -> Binary p BXor)
     ]
-  , [ binary "|"  (\p -> Binary p BOr) AssocLeft
+  , [ infixL "|"  (\p -> Binary p BOr)
     ]
-  , [ binary "&&" (\p -> Binary p LAnd) AssocLeft
+  , [ infixL "&&" (\p -> Binary p LAnd)
     ]
-  , [ binary "||" (\p -> Binary p LOr) AssocLeft
+  , [ infixL "||" (\p -> Binary p LOr)
     ]
   ]
 
+infixL :: RiverParser s m => String -> (SourcePos -> a -> a -> a) -> Operator m a
+infixL name fun =
+  InfixL (fmap fun (getPosition <* pReservedOp name))
+
+prefix :: RiverParser s m => String -> (SourcePos -> a -> a) -> Operator m a
+prefix name fun =
+  Prefix (fmap fun (getPosition <* pReservedOp name))
+
 ------------------------------------------------------------------------
 
-pType :: RiverParser Type
+pType :: RiverParser s m => m Type
 pType =
   (Int <$ pReserved "int") <|>
   (Bool <$ pReserved "bool") <?> "type"
 
-pLValue :: RiverParser (LValue Delta)
+pLValue :: RiverParser s m => m (LValue SourcePos)
 pLValue =
   LIdentifier
-    <$> position
+    <$> getPosition
     <*> pIdentifier
 
-pIdentifier :: (Monad m, TokenParsing m) => m Identifier
+pIdentifier :: RiverParser s m => m Identifier
 pIdentifier =
-  Identifier . T.pack <$> ident identStyle <?> "identifier"
+  try . label "identifier" $ do
+    parsed <- pIdent
+    if Set.member parsed reservedIdents then
+      fail $ "keyword '" ++ parsed ++ "' cannot be an identifier"
+    else
+      pure . Identifier $ T.pack parsed
 
-pReserved :: (Monad m, TokenParsing m) => String -> m ()
-pReserved =
-  reserve identStyle
+pReserved :: RiverParser s m => String -> m ()
+pReserved expected =
+  try . label expected $ do
+    parsed <- pIdent
+    if parsed == expected then
+      pure ()
+    else
+      fail $ "expected keyword '" ++ expected ++ "'"
 
-pOperator :: (Monad m, TokenParsing m) => String -> m ()
-pOperator =
-  reserve opStyle
+pReservedOp :: RiverParser s m => String -> m ()
+pReservedOp expected =
+  try . label expected $ do
+    parsed <- pOperator
+    if parsed == expected then
+      pure ()
+    else
+      fail $ "expected operator " ++ expected
 
-pEquals :: (Monad m, TokenParsing m) => m ()
+pEquals :: RiverParser s m => m ()
 pEquals =
-  pOperator "="
+  pReservedOp "="
 
 ------------------------------------------------------------------------
--- Operator Table
+-- Lexer
 
-binary ::
-  DeltaParsing m =>
-  String -> (Delta -> a -> a -> a) -> Assoc -> Operator m a
-binary name fun assoc =
-  Infix (fmap fun (position <* pOperator name)) assoc
+type RiverParser s m =
+  (MonadParsec Dec s m, Token s ~ Char)
 
-prefix ::
-  DeltaParsing m =>
-  String -> (Delta -> a -> a) -> Operator m a
-prefix name fun =
-  Prefix (fmap fun (position <* pOperator name))
-
-------------------------------------------------------------------------
--- Parser Monad
-
-newtype RiverParser a =
-  RiverParser {
-      runRiverParser :: Parser a
-    } deriving (
-      Monoid
-    , Functor
-    , Applicative
-    , Alternative
-    , Monad
-    , MonadPlus
-    , CharParsing
-    , DeltaParsing
-    , MarkParsing Delta
-    )
-
-deriving instance Parsing RiverParser
-
-instance TokenParsing RiverParser where
-  someSpace =
-    RiverParser $ buildSomeSpaceParser someSpace commentStyle
-
-  nesting =
-    RiverParser . nesting . runRiverParser
-
-  highlight h =
-    RiverParser . highlight h . runRiverParser
-
-  semi =
-    token (char ';' <?> ";")
-
-  token p =
-    p <* whiteSpace
-
-commentStyle :: CommentStyle
-commentStyle =
-  CommentStyle {
-      _commentStart =
-        "/*"
-
-    , _commentEnd =
-        "*/"
-
-    , _commentLine =
-        "//"
-
-    , _commentNesting =
-        True
-    }
-
-identStyle :: CharParsing m => IdentifierStyle m
-identStyle =
-  IdentifierStyle {
-      _styleName =
-        "identifier"
-
-    , _styleStart =
-        pIdentStart
-
-    , _styleLetter =
-        pIdentLetter
-
-    , _styleReserved =
-        reservedNames
-
-    , _styleHighlight =
-        Highlight.Identifier
-
-    , _styleReservedHighlight =
-        Highlight.ReservedIdentifier
-    }
-
-reservedNames :: HashSet String
-reservedNames =
-  HashSet.fromList
+reservedIdents :: Set String
+reservedIdents =
+  Set.fromList
     [ "struct"
     , "typedef"
     , "if"
@@ -416,69 +350,59 @@ reservedNames =
     , "string"
     ]
 
-pIdentStart :: CharParsing m => m Char
+pSpace :: RiverParser s m => m ()
+pSpace =
+  let
+    lineComment =
+      Lexer.skipLineComment "//"
+
+    blockComment =
+      Lexer.skipBlockComment "/*" "*/"
+  in
+    Lexer.space (void spaceChar) lineComment blockComment
+
+pLexeme :: RiverParser s m => m a -> m a
+pLexeme =
+  Lexer.lexeme pSpace
+
+pSymbol :: RiverParser s m => String -> m String
+pSymbol =
+  Lexer.symbol pSpace
+
+pParens :: RiverParser s m => m a -> m a
+pParens =
+  between (pSymbol "(") (pSymbol ")")
+
+pBraces :: RiverParser s m => m a -> m a
+pBraces =
+  between (pSymbol "{") (pSymbol "}")
+
+pSemi :: RiverParser s m => m ()
+pSemi =
+  () <$ pSymbol ";"
+
+pIdent :: RiverParser s m => m String
+pIdent =
+  pLexeme $
+    (:) <$> pIdentStart <*> many pIdentLetter
+
+pIdentStart :: RiverParser s m => m Char
 pIdentStart =
-  letter <|> char '_'
+  letterChar <|> char '_'
 
-pIdentLetter :: CharParsing m => m Char
+pIdentLetter :: RiverParser s m => m Char
 pIdentLetter =
-  alphaNum <|> char '_'
+  alphaNumChar <|> char '_'
 
-opStyle :: CharParsing m => IdentifierStyle m
-opStyle =
-  IdentifierStyle {
-      _styleName =
-        "operator"
+pOperator :: RiverParser s m => m String
+pOperator =
+  pLexeme $
+    (:) <$> pOpStart <*> many pOpLetter
 
-    , _styleStart =
-        pOpStart
-
-    , _styleLetter =
-        pOpLetter
-
-    , _styleReserved =
-        HashSet.empty
-
-    , _styleHighlight =
-        Highlight.Operator
-
-    , _styleReservedHighlight =
-        Highlight.ReservedOperator
-    }
-
-pOpStart :: CharParsing m => m Char
+pOpStart :: RiverParser s m => m Char
 pOpStart =
-  Trifecta.oneOf "!~-*/%+<>&^|=?:"
+  oneOf "!~-+*/%<>&^|=?:"
 
-pOpLetter :: CharParsing m => m Char
+pOpLetter :: RiverParser s m => m Char
 pOpLetter =
-  Trifecta.oneOf "<>&|="
-
-------------------------------------------------------------------------
--- Delta
-
-fileOfDelta :: Delta -> FilePath
-fileOfDelta = \case
-  Columns _ _->
-    "(interactive)"
-  Tab _ _ _ ->
-    "(interactive)"
-  Lines _ _ _ _ ->
-    "(interactive)"
-  Directed fn _ _ _ _ ->
-    UTF8.toString fn
-
-lineOfDelta :: Delta -> Int
-lineOfDelta = \case
-  Columns _ _->
-    0
-  Tab _ _ _ ->
-    0
-  Lines l _ _ _ ->
-    fromIntegral l + 1
-  Directed _ l _ _ _ ->
-    fromIntegral l + 1
-
-columnOfDelta :: Delta -> Int
-columnOfDelta pos =
-  fromIntegral (Trifecta.column pos) + 1
+  oneOf "-+<>&|="

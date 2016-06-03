@@ -80,7 +80,6 @@ coloredOfProgram strategy p0 = do
 
 -- | Rename variables to their potentially pre-colored names.
 precoloredOfProgram ::
-  Ord c =>
   Ord n =>
   FreshName n =>
   ColorStrategy e c k p n a ->

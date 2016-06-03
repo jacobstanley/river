@@ -11,8 +11,8 @@ module River.Compile (
 
   -- * should be somewhere else
   , ppError
+  , ppParseError
   , ppCheckError
-  , locationOfDelta
   ) where
 
 import           Control.Monad.Trans.Except (ExceptT(..), runExceptT, throwE)
@@ -20,6 +20,7 @@ import           Control.Monad.IO.Class (liftIO)
 
 import           Data.Int (Int64)
 import qualified Data.List as List
+import qualified Data.List.NonEmpty as NonEmpty
 import           Data.Monoid ((<>))
 import qualified Data.Set as Set
 import           Data.Text (Text)
@@ -43,7 +44,8 @@ import           System.FilePath ((</>))
 import           System.IO.Temp (withSystemTempDirectory)
 import           System.Process (callProcess, readProcessWithExitCode)
 
-import           Text.Trifecta.Delta (Delta)
+import           Text.Megaparsec (SourcePos(..), Pos, Dec)
+import qualified Text.Megaparsec as Mega
 
 
 data ExecuteResult =
@@ -52,15 +54,15 @@ data ExecuteResult =
     deriving (Eq, Ord, Show)
 
 data CompileError =
-    ParseError !ParseError
-  | CheckError ![CheckError Location]
-  | X64Error !(X64Error (Name Text) (Maybe Location))
+    ParseError !(Mega.ParseError Char Dec)
+  | CheckError ![CheckError SourcePos]
+  | X64Error !(X64Error (Name Text) (Maybe SourcePos))
     deriving (Show)
 
 renderCompileError :: [Text] -> CompileError -> Text
 renderCompileError file = \case
   ParseError err ->
-    T.pack $ show err
+    ppParseError file err
   CheckError errs ->
     T.unlines .
     fmap (ppError file) .
@@ -119,7 +121,7 @@ compileBinaryE esrc dst = do
   checkProgram' program
 
   asm <-
-    firstT (X64Error . fmap (fmap locationOfDelta)) . liftE .
+    firstT X64Error . liftE .
     assemblyOfProgram Label $
     coreOfProgram program
 
@@ -138,12 +140,11 @@ compileBinaryE esrc dst = do
       liftIO $ callProcess "gcc" [runtimePath, programPath, "-o", outputPath]
       liftIO $ renameFile outputPath dst
 
-checkProgram' :: Monad m => Program Delta -> ExceptT CompileError m ()
+checkProgram' :: Monad m => Program SourcePos -> ExceptT CompileError m ()
 checkProgram' program =
   let
     errors =
-      checkProgram .
-      fmap locationOfDelta $
+      checkProgram $
       program
   in
     case errors of
@@ -169,31 +170,30 @@ runtime =
 
 ------------------------------------------------------------------------
 
-data Location =
-    Location FilePath Int Int
-    deriving (Eq, Ord, Read, Show)
+ppError :: [Text] -> (SourcePos, Text) -> Text
+ppError file (pos, msg) =
+  T.pack (Mega.sourcePosPretty pos) <> ": error: " <> msg <> "\n" <>
+  ppErrorLine file pos
 
-locationOfDelta :: Delta -> Location
-locationOfDelta d =
-  Location (fileOfDelta d) (lineOfDelta d) (columnOfDelta d)
+ppParseError :: [Text] -> Mega.ParseError Char Dec -> Text
+ppParseError file err =
+  T.pack (Mega.parseErrorPretty err) <> "\n" <>
+  ppErrorLine file (NonEmpty.head $ Mega.errorPos err)
 
-ppError :: [Text] -> (Location, Text) -> Text
-ppError file (loc@(Location _ line col), msg) =
-  ppLocation loc <> ": error: " <> msg <> "\n" <>
-  case drop (line-1) file of
+ppErrorLine :: [Text] -> SourcePos -> Text
+ppErrorLine file pos =
+  case drop (fromPos (Mega.sourceLine pos) - 1) file of
     [] ->
       mempty
     errorLine : _ ->
       errorLine <> "\n" <>
-      T.replicate (col-1) " " <> "^"
+      T.replicate (fromPos (Mega.sourceColumn pos) - 1) " " <> "^"
 
-ppLocation :: Location -> Text
-ppLocation (Location file line column) =
-  T.pack file <> ":" <>
-  T.pack (show line) <> ":" <>
-  T.pack (show column)
+fromPos :: Pos -> Int
+fromPos =
+  fromIntegral . Mega.unPos
 
-ppCheckError :: CheckError Location -> [(Location, Text)]
+ppCheckError :: CheckError SourcePos -> [(SourcePos, Text)]
 ppCheckError =
   let
     ppUndecl (Identifier n) =
