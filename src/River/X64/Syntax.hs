@@ -29,6 +29,8 @@ data Instruction =
   | Imulq !Operand64
   | Cqto
   | Idivq !Operand64
+  | Lahf
+  | Sahf
   | Cmpq !Operand64 !Operand64
   | Test !Operand64 !Operand64
   | Set !Cc !Operand64
@@ -76,4 +78,5 @@ data Register64 =
   | R13
   | R14
   | R15
+  | RFLAGS
     deriving (Eq, Ord, Read, Show, Data, Typeable, Generic, NFData)

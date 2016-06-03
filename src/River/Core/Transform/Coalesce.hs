@@ -21,6 +21,14 @@ coalesceProgram :: Ord n => Program k p n a -> Program k p n a
 coalesceProgram = \case
   Program a tm ->
     Program a .
+
+    -- TODO FixT
+    -- TODO Split up this transform
+
+    fmap freeTail .
+    coalesceTerm Map.empty .
+    annotFreeOfTerm .
+
     fmap freeTail .
     coalesceTerm Map.empty $
     annotFreeOfTerm tm

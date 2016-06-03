@@ -14,6 +14,7 @@ import           River.Bifunctor
 import qualified River.Core.Primitive as Core
 import           River.Core.Syntax
 import           River.Fresh
+import           River.X64.Primitive (Cc(..))
 import qualified River.X64.Primitive as X64
 
 
@@ -158,6 +159,9 @@ assimilateComplexPrim ::
     (Term k X64.Prim n a -> Term k X64.Prim n a)
 assimilateComplexPrim an ns ap p xs =
   case (ns, p, xs) of
+
+    -- Arithmetic --
+
     ([dst], Core.Mul, [x, y]) -> do
       ignore <- newFresh
       pure .
@@ -181,6 +185,19 @@ assimilateComplexPrim an ns ap p xs =
           (Prim ap X64.Cqto [x]) .
         Let an [ignore, dst]
           (Prim ap X64.Idiv [x, Variable ap high_x, y])
+
+    -- Relations --
+
+    ([dst], Core.Eq, [x, y]) -> do
+      flags <- freshen dst
+      dst8 <- freshen dst
+      pure $
+        Let an [flags]
+          (Prim ap X64.Cmp [x, y]) .
+        Let an [dst8]
+          (Prim ap (X64.Set E) [Variable ap flags]) .
+        Let an [dst]
+          (Prim ap X64.Movz [Variable ap dst8])
 
     _ ->
       throwE $ AssimilateInvalidPrim ns p xs

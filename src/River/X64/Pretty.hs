@@ -187,6 +187,8 @@ ppPrim = \case
     text "sal"
   X64.Sar ->
     text "sar"
+  X64.Movz ->
+    text "movz"
   X64.Cmp ->
     text "cmp"
   X64.Set cc ->
