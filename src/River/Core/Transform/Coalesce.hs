@@ -12,8 +12,8 @@ import qualified Data.Map as Map
 import qualified Data.Set as Set
 
 import           River.Bifunctor
+import           River.Core.Analysis.Scope
 import           River.Core.Annotation
-import           River.Core.Scope
 import           River.Core.Syntax
 
 
@@ -30,8 +30,10 @@ coalesceProgram = \case
     annotFreeOfTerm .
 
     fmap freeTail .
-    coalesceTerm Map.empty $
-    annotFreeOfTerm tm
+    coalesceTerm Map.empty .
+    annotFreeOfTerm .
+
+    id $ tm
 
 coalesceTerm ::
   Ord n =>

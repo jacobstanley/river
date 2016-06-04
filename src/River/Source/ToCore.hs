@@ -11,8 +11,8 @@ module River.Source.ToCore (
 import qualified Data.Set as Set
 import           Data.Text (Text)
 
+import           River.Core.Analysis.Scope
 import qualified River.Core.Primitive as Core
-import           River.Core.Scope
 import qualified River.Core.Syntax as Core
 import           River.Core.Transform.Rename
 import           River.Fresh

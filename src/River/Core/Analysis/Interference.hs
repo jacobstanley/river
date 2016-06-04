@@ -19,8 +19,8 @@ import           Data.Monoid ((<>))
 import           Data.Set (Set)
 import qualified Data.Set as Set
 
+import           River.Core.Analysis.Scope
 import           River.Core.Annotation
-import           River.Core.Scope
 import           River.Core.Syntax
 
 import           Text.PrettyPrint.Boxes ((//), (<+>))

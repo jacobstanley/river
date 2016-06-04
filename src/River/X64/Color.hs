@@ -68,6 +68,21 @@ precoloredOfTerm = \case
     pure $
       Return at tl
 
+  If at k (Variable ai i) t0 e0 -> do
+    t <- precoloredOfTerm t0
+    e <- precoloredOfTerm e0
+
+    i_ah <- freshen i
+    i_flags <- freshen i
+
+    putsert i_ah    RAX
+    putsert i_flags RFLAGS
+
+    pure $
+      Let at [i_ah]    (Copy at [Variable ai i]) $
+      Let at [i_flags] (Copy at [Variable ai i_ah]) $ -- implicit sahf instruction
+      If at k (Variable ai i_flags) t e
+
   If at k i t0 e0 ->
     If at k i
       <$> precoloredOfTerm t0

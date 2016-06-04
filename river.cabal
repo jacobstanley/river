@@ -51,6 +51,7 @@ library
                     River.Compile
 
                     River.Core.Analysis.Interference
+                    River.Core.Analysis.Scope
                     River.Core.Analysis.Simplicial
                     River.Core.Annotation
                     River.Core.Color
@@ -59,7 +60,6 @@ library
                     River.Core.Fresh
                     River.Core.Pretty
                     River.Core.Primitive
-                    River.Core.Scope
                     River.Core.Syntax
                     River.Core.Transform.Coalesce
                     River.Core.Transform.Grail

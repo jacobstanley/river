@@ -117,15 +117,12 @@ dump path = do
         core =
           coreOfProgram abstract
 
-        recond =
-          reconditionProgram core
-
         e_jump_reprim =
           first show .
-          runFreshFrom (nextOfProgram recond) .
+          runFreshFrom (nextOfProgram core) .
           runExceptT $ do
-            pp <- reprimProgram recond
-            pj <- jumpOfProgram pp
+            pp <- reprimProgram core
+            pj <- jumpOfProgram (reconditionProgram pp)
             pure (pj, pp)
 
         ejump =
@@ -166,19 +163,13 @@ dump path = do
         Core.displayProgram core
 
       putStrLn ""
-      putStrLn "-- Core (with condition codes) --"
-      putStrLn ""
-      putStrLn $
-        Core.displayProgram' X64.ppCc Core.ppPrim Core.ppName recond
-
-      putStrLn ""
       putStrLn "-- Core (with x86-64 primitives) --"
       putStrLn ""
       putStrLn . fromE ereprim $
-        Core.displayProgram' X64.ppCc X64.ppPrim Core.ppName
+        Core.displayProgram' Core.ppKEmpty X64.ppPrim Core.ppName
 
       putStrLn ""
-      putStrLn "-- Core (after jump hoisting) --"
+      putStrLn "-- Core (with conditional jumps) --"
       putStrLn ""
       putStrLn . fromE ejump $
         Core.displayProgram' X64.ppCc X64.ppPrim Core.ppName

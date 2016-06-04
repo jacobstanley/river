@@ -55,31 +55,27 @@ assemblyOfProgram mkLabel p0 = do
     runFreshN p =
       runFreshFrom $ nextOfProgram p
 
-  let
-    p1 =
-      reconditionProgram p0
+  p1 <-
+    first ReprimError . runFreshN p0 . runExceptT $
+      jumpOfProgram . reconditionProgram =<< reprimProgram p0
 
   p2 <-
-    first ReprimError . runFreshN p1 . runExceptT $
-      jumpOfProgram =<< reprimProgram p1
+    first GrailError $
+      grailOfProgram p1
 
   p3 <-
-    first GrailError $
-      grailOfProgram p2
+    first SplitError $
+      splitOfProgram p2
 
   p4 <-
-    first SplitError $
-      splitOfProgram p3
-
-  p5 <-
     first RegisterAllocationError $
-      coloredOfProgram colorByRegister p4
+      coloredOfProgram colorByRegister p3
 
   let
-    p6 =
-      coalesceProgram $ first (fromColored mkLabel) p5
+    p5 =
+      coalesceProgram $ first (fromColored mkLabel) p4
 
-  case p6 of
+  case p5 of
     Program _ tm ->
       assemblyOfTerm tm
 
@@ -104,16 +100,17 @@ assemblyOfTerm = \case
       <$> assemblyOfTail [Register64 RAX] tl
       <*> pure [ Ret ]
 
-  If _ Nz (Variable _ (Rg i)) (Return _ (Call _ (Lb t) [])) e ->
-    let
-      preamble =
-        [ Test (Register64 i) (Register64 i)
-        , J Nz t ]
-    in
-      (preamble ++) <$> assemblyOfTerm e
+  If _ cc (Variable _ (Rg RFLAGS)) (Return _ (Call _ (Lb t) [])) e ->
+    ([J cc t] ++) <$> assemblyOfTerm e
 
   If a k i t e ->
     Left $ MalformedIf a k i t e
+
+  Let _ [Rg RAX] (Copy _ [Variable _ (Rg RFLAGS)]) tm -> do
+    ([Sahf] ++) <$> assemblyOfTerm tm
+
+  Let _ [Rg RFLAGS] (Copy _ [Variable _ (Rg RAX)]) tm -> do
+    ([Lahf] ++) <$> assemblyOfTerm tm
 
   Let a ns tl tm -> do
     ops <- operandsOfNames a ns
