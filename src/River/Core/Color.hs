@@ -24,6 +24,7 @@ import qualified Data.Set as Set
 import           Data.Void (Void)
 
 import           River.Core.Analysis.Interference
+import           River.Core.Analysis.Simplicial
 import           River.Core.Fresh
 import           River.Core.Syntax
 import           River.Fresh
@@ -126,8 +127,8 @@ colorsOfProgram strategy p0 = do
 
     ordering :: [n]
     ordering =
-      -- simplicial interference
-      orderingOfProgram p
+      simplicial interference
+      -- orderingOfProgram p
 
     go :: Map n c -> n -> Either (ColorError e n) (Map n c)
     go colors n = do

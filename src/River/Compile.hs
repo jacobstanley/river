@@ -15,8 +15,8 @@ module River.Compile (
   , ppCheckError
   ) where
 
-import           Control.Monad.Trans.Except (ExceptT(..), runExceptT, throwE)
 import           Control.Monad.IO.Class (liftIO)
+import           Control.Monad.Trans.Except (ExceptT(..), runExceptT, throwE)
 
 import           Data.Int (Int64)
 import qualified Data.List as List

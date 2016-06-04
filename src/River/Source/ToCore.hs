@@ -102,27 +102,29 @@ coreOfStatements finish = \case
     n <- newFresh
     term_let_if <- coreOfExpression n x
 
+    let
+      mk_term_while call = do
+        term_body <- coreOfBlock call b
+        pure .
+          term_let_if $
+          Core.If (Just a) () (Core.Variable (Just a) n)
+            term_body
+            term_call_rest
+
     -- TODO this could be optimised, we're stupidly generating the core twice
-    free_body <- Set.toList . freeOfTerm <$> coreOfBlock (Core.Copy Nothing []) b
+    -- TODO this is also problematic, we should only need the free vars from the body
+    free_while <- Set.toList . freeOfTerm <$> mk_term_while (Core.Copy Nothing [])
+    -- free_while <- Set.toList . freeOfTerm <$> coreOfBlock (Core.Copy Nothing []) b
     while <- newFresh
 
     let
       call_while =
         Core.Call (Just a) while $
-        fmap (Core.Variable Nothing) free_body
+        fmap (Core.Variable Nothing) free_while
 
-    term_body <- coreOfBlock call_while b
+    term_while <- mk_term_while call_while
 
     let
-      term_while =
-        term_let_if $
-        Core.If (Just a) () (Core.Variable (Just a) n)
-          term_body
-          term_call_rest
-
-      free_while =
-        Set.toList $ freeOfTerm term_while
-
       bindings =
         Core.Bindings Nothing
         [ (while, Core.Lambda Nothing free_while term_while)
