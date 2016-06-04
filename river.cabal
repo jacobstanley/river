@@ -64,7 +64,6 @@ library
                     River.Core.Pretty
                     River.Core.Primitive
                     River.Core.Syntax
-                    River.Core.Transform.Coalesce
                     River.Core.Transform.Copy
                     River.Core.Transform.Dead
                     River.Core.Transform.Grail
