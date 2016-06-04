@@ -128,7 +128,9 @@ dump path = do
             pp <- reprimProgram core
             pc <- reconditionProgram pp
             pj <- jumpOfProgram (flipProgram pc)
-            pure (pj, pp)
+            let
+              pd = runProgress $ deadOfProgram pj
+            pure (pd, pp)
 
         ejump =
           fmap fst e_jump_reprim
@@ -143,6 +145,9 @@ dump path = do
 
         eprecolored =
           first show $ fmap (precoloredOfProgram colorByRegister) egrail
+
+        einterference =
+          first show . interferenceOfProgram =<< egrail
 
         ecolored =
           first show . coloredOfProgram colorByRegister =<< egrail
@@ -195,10 +200,8 @@ dump path = do
       putStrLn ""
       putStrLn "-- Interference Graph --"
       putStrLn ""
-      putStrLn . fromE eprecolored $
-        ppInterferenceGraph (show . Core.ppName) .
-        interferenceOfProgram .
-        first fst
+      putStrLn . fromE einterference $
+        ppInterferenceGraph (show . Core.ppName)
 
       putStrLn ""
       putStrLn "-- Registers Allocated --"

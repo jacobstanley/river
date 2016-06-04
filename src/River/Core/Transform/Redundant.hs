@@ -10,7 +10,7 @@ module River.Core.Transform.Redundant (
 import           Data.Maybe (mapMaybe)
 
 import           River.Bifunctor
-import           River.Core.Analysis.Scope
+import           River.Core.Analysis.Free
 import           River.Core.Syntax
 import           River.Progress
 

@@ -36,6 +36,7 @@ data ColorError e n =
     MissingFromInterference !n
   | MissingFromBindings !n
   | StrategyError !e
+  | InterferenceError !(InterferenceError n)
     deriving (Eq, Ord, Show)
 
 data ColorStrategy e c k p n a =
@@ -121,10 +122,9 @@ colorsOfProgram strategy p0 = do
       runFreshFrom (nextOfProgram p0) $
       precolored strategy p0
 
-    interference :: InterferenceGraph n
-    interference =
-      interferenceOfProgram p
+  interference <- first InterferenceError $ interferenceOfProgram p
 
+  let
     ordering :: [n]
     ordering =
       simplicial interference

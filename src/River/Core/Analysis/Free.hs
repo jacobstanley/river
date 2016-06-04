@@ -1,7 +1,7 @@
 {-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE DeriveFunctor #-}
 {-# LANGUAGE LambdaCase #-}
-module River.Core.Analysis.Scope (
+module River.Core.Analysis.Free (
     freeOfProgram
   , freeOfTerm
   , freeOfTail

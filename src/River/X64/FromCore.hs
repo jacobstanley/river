@@ -65,8 +65,12 @@ assemblyOfProgram mkLabel p0 = do
       runFreshFrom $ nextOfProgram p
 
   p1 <-
-    first ReprimError . runFreshN p0 . runExceptT $
-      jumpOfProgram . flipProgram =<< reconditionProgram =<< reprimProgram p0
+    first ReprimError . runFreshN p0 . runExceptT $ do
+      pp <- reprimProgram p0
+      pc <- reconditionProgram pp
+      pj <- jumpOfProgram $ flipProgram pc
+      pure .
+        runProgress $ deadOfProgram pj
 
   p2 <-
     first GrailError $
@@ -118,10 +122,10 @@ assemblyOfTerm = \case
     Left $ MalformedIf a k i t e
 
   Let _ [Rg RAX] (Copy _ [Variable _ (Rg RFLAGS)]) tm -> do
-    ([Sahf] ++) <$> assemblyOfTerm tm
+    ([Lahf] ++) <$> assemblyOfTerm tm
 
   Let _ [Rg RFLAGS] (Copy _ [Variable _ (Rg RAX)]) tm -> do
-    ([Lahf] ++) <$> assemblyOfTerm tm
+    ([Sahf] ++) <$> assemblyOfTerm tm
 
   Let a ns tl tm -> do
     ops <- operandsOfNames a ns

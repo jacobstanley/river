@@ -1,12 +1,11 @@
-//test return 0
+//test return 65536
 
 int main ()
 {
-  int x = 5;
+  int x = 16;
   int res = 1;
   int sum = 2;
   for (int z = 0; z < x; z++){
-    //res = res * sum;
     res *= sum;
   }
   return res;

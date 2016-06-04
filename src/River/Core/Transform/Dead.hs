@@ -10,7 +10,7 @@ module River.Core.Transform.Dead (
 import qualified Data.Set as Set
 
 import           River.Bifunctor
-import           River.Core.Analysis.Scope
+import           River.Core.Analysis.Free
 import           River.Core.Annotation
 import           River.Core.Syntax
 import           River.Effect

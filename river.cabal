@@ -53,8 +53,9 @@ library
                     River.Name
                     River.Progress
 
+                    River.Core.Analysis.Free
                     River.Core.Analysis.Interference
-                    River.Core.Analysis.Scope
+                    River.Core.Analysis.Live
                     River.Core.Analysis.Simplicial
                     River.Core.Annotation
                     River.Core.Color

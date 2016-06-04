@@ -69,3 +69,21 @@ gcd:
     x2_b <- r           -- x1_b, r
     goto gcd            -- x1_b, x2_b
 ```
+
+# Functional w/ free vars
+
+```
+z = 0
+gcd (x1, x2) =
+  if (x2 = z)         -- z, x1, x2
+    return x1         -- x1
+  else
+    let
+      q   = x1 / x2   -- z, x1, x2
+      t   = q * x2    -- z, x1, x2, q
+      r   = x1 - t    -- z, x1, x2, t
+      x1' = x2        -- z, x2, r
+      x2' = r         -- z, x1', r
+    in
+      gcd (x1', x2')  -- z, x1', x2'
+```

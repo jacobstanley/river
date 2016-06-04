@@ -12,6 +12,7 @@ module River.Core.Transform.Copy (
 
 import           Data.Map (Map)
 import qualified Data.Map as Map
+import qualified Data.Set as Set
 
 import           River.Bifunctor
 import           River.Core.Syntax
@@ -47,11 +48,12 @@ copyOfTerm env0 = \case
       env =
         case tl of
           Copy _ xs ->
-            Map.fromList (zip ns xs) `Map.union` env0
+            Map.fromList (zip ns xs) `Map.union`
+            removeStaleBindings ns env0
           Call _ _ _ ->
-            env0 `mapDifferenceList` ns
+            removeStaleBindings ns env0
           Prim _ _ _ ->
-            env0 `mapDifferenceList` ns
+            removeStaleBindings ns env0
 
     Let a ns tl <$> copyOfTerm env tm0
 
@@ -59,6 +61,29 @@ copyOfTerm env0 = \case
     LetRec a
       <$> copyOfBindings env0 bs
       <*> copyOfTerm env0 tm
+
+removeStaleBindings :: Ord n => [n] -> Map n (Atom n a) -> Map n (Atom n a)
+removeStaleBindings ns env =
+  let
+    names =
+      Set.fromList ns
+
+    -- k is bound to one of the names which we are about to bind
+    bound k =
+      Set.member k names
+
+    -- v references one of the names which we are about to bind
+    references v =
+      case v of
+        Variable _ n ->
+          Set.member n names
+        Immediate _ _ ->
+          False
+
+    stale (k, v) =
+      bound k || references v
+  in
+    Map.filterWithKey (curry $ not . stale) env
 
 copyOfTail ::
   Ord n =>

@@ -11,7 +11,7 @@ module River.Source.ToCore (
 import qualified Data.Set as Set
 import           Data.Text (Text)
 
-import           River.Core.Analysis.Scope
+import           River.Core.Analysis.Free
 import qualified River.Core.Primitive as Core
 import qualified River.Core.Syntax as Core
 import           River.Core.Transform.Rename
@@ -112,9 +112,7 @@ coreOfStatements finish = \case
             term_call_rest
 
     -- TODO this could be optimised, we're stupidly generating the core twice
-    -- TODO this is also problematic, we should only need the free vars from the body
-    free_while <- Set.toList . freeOfTerm <$> mk_term_while (Core.Copy Nothing [])
-    -- free_while <- Set.toList . freeOfTerm <$> coreOfBlock (Core.Copy Nothing []) b
+    free_while <- Set.toList . freeOfTerm <$> coreOfBlock (Core.Copy Nothing []) b
     while <- newFresh
 
     let

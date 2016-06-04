@@ -9,6 +9,7 @@ module River.Core.Analysis.Interference (
   , fromNeighboring
   , ppInterferenceGraph
 
+  , InterferenceError(..)
   , interferenceOfProgram
   , interferenceOfTerm
   ) where
@@ -19,7 +20,8 @@ import           Data.Monoid ((<>))
 import           Data.Set (Set)
 import qualified Data.Set as Set
 
-import           River.Core.Analysis.Scope
+import           River.Bifunctor
+import           River.Core.Analysis.Live
 import           River.Core.Annotation
 import           River.Core.Syntax
 
@@ -61,55 +63,62 @@ fromNeighboring =
 
 ------------------------------------------------------------------------
 
+data InterferenceError n =
+    InterferenceLiveError !(LiveError n)
+    deriving (Eq, Ord, Show)
+
 -- | Find the interference graph of a program.
-interferenceOfProgram :: Ord n => Program k p n a -> InterferenceGraph n
+interferenceOfProgram ::
+  Ord n =>
+  Program k p n a ->
+  Either (InterferenceError n) (InterferenceGraph n)
 interferenceOfProgram = \case
   Program _ tm ->
     interferenceOfTerm tm
 
-interferenceOfTerm :: Ord n => Term k p n a -> InterferenceGraph n
+interferenceOfTerm :: Ord n => Term k p n a -> Either (InterferenceError n) (InterferenceGraph n)
 interferenceOfTerm =
-  interferenceOfAnnotTerm . annotFreeOfTerm
+  fmap interferenceOfAnnotTerm . first InterferenceLiveError . liveOfTerm
 
-interferenceOfAnnotTerm :: Ord n => Term k p n (Free n a) -> InterferenceGraph n
+interferenceOfAnnotTerm :: Ord n => Term k p n (Live n a) -> InterferenceGraph n
 interferenceOfAnnotTerm = \case
  Return a _ ->
-   fromNeighboring (freeVars a)
+   fromNeighboring (liveVars a)
  If a _ _ t e ->
-   fromNeighboring (freeVars a) <>
+   fromNeighboring (liveVars a) <>
    interferenceOfAnnotTerm t <>
    interferenceOfAnnotTerm e
  Let a ns _ tm ->
    -- when there are no dead bindings then:
    --
-   --   freeOfAnnotTerm tm = freeOfAnnotTerm tm <> Set.fromList ns
+   --   liveOfAnnotTerm tm = liveOfAnnotTerm tm <> Set.fromList ns
    --
-   fromNeighboring (freeVars a) <>
-   fromNeighboring (freeOfAnnotTerm tm <> Set.fromList ns) <>
+   fromNeighboring (liveVars a) <>
+   fromNeighboring (liveOfAnnotTerm tm <> Set.fromList ns) <>
    interferenceOfAnnotTerm tm
  LetRec a bs tm ->
-   fromNeighboring (freeVars a) <>
+   fromNeighboring (liveVars a) <>
    interferenceOfAnnotBindings bs <>
    interferenceOfAnnotTerm tm
 
-interferenceOfAnnotBindings :: Ord n => Bindings k p n (Free n a) -> InterferenceGraph n
+interferenceOfAnnotBindings :: Ord n => Bindings k p n (Live n a) -> InterferenceGraph n
 interferenceOfAnnotBindings = \case
   Bindings a bs ->
-    fromNeighboring (freeVars a) <>
+    fromNeighboring (liveVars a) <>
     -- Function names can't interfere as they are labels rather than registers.
     -- Maybe they should have a different name type?
     mconcat (fmap (interferenceOfAnnotBinding . snd) bs)
 
-interferenceOfAnnotBinding :: Ord n => Binding k p n (Free n a) -> InterferenceGraph n
+interferenceOfAnnotBinding :: Ord n => Binding k p n (Live n a) -> InterferenceGraph n
 interferenceOfAnnotBinding = \case
   Lambda a ns tm ->
-    fromNeighboring (freeVars a) <>
-    fromNeighboring (freeOfAnnotTerm tm <> Set.fromList ns) <>
+    fromNeighboring (liveVars a) <>
+    fromNeighboring (liveOfAnnotTerm tm <> Set.fromList ns) <>
     interferenceOfAnnotTerm tm
 
-freeOfAnnotTerm :: Term k p n (Free n a) -> Set n
-freeOfAnnotTerm =
-  freeVars . annotOfTerm
+liveOfAnnotTerm :: Term k p n (Live n a) -> Set n
+liveOfAnnotTerm =
+  liveVars . annotOfTerm
 
 ------------------------------------------------------------------------
 
