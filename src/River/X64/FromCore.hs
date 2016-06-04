@@ -1,3 +1,4 @@
+{-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE DeriveFunctor #-}
 {-# LANGUAGE LambdaCase #-}
 module River.X64.FromCore (
@@ -6,23 +7,31 @@ module River.X64.FromCore (
   , X64Error(..)
   ) where
 
+import           Control.Monad ((<=<))
 import           Control.Monad.Trans.Except (runExceptT)
 
 import           Data.Bifunctor (first)
+import           Data.Maybe (mapMaybe)
+import           Data.Set (Set)
+import qualified Data.Set as Set
 
 import           River.Core.Color
 import           River.Core.Fresh
 import qualified River.Core.Primitive as Core
 import           River.Core.Syntax
-import           River.Core.Transform.Coalesce
+import           River.Core.Transform.Copy
+import           River.Core.Transform.Dead
 import           River.Core.Transform.Grail
 import           River.Core.Transform.Jump
+import           River.Core.Transform.Redundant
 import           River.Core.Transform.Split
 import           River.Fresh
+import           River.Progress
 import           River.X64.Color
 import           River.X64.Name as X64
 import qualified River.X64.Primitive as X64
 import           River.X64.Syntax
+import           River.X64.Transform.Flip
 import           River.X64.Transform.Recondition
 import           River.X64.Transform.Reprim
 
@@ -57,7 +66,7 @@ assemblyOfProgram mkLabel p0 = do
 
   p1 <-
     first ReprimError . runFreshN p0 . runExceptT $
-      jumpOfProgram . reconditionProgram =<< reprimProgram p0
+      jumpOfProgram . flipProgram =<< reconditionProgram =<< reprimProgram p0
 
   p2 <-
     first GrailError $
@@ -73,10 +82,12 @@ assemblyOfProgram mkLabel p0 = do
 
   let
     p5 =
-      coalesceProgram $ first (fromColored mkLabel) p4
+      fixProgress (redundantOfProgram <=< copyOfProgram <=< deadOfProgram) $
+      first (fromColored mkLabel) p4
 
   case p5 of
     Program _ tm ->
+      fmap (removeDeadLabels . removeRedundantJumps) $
       assemblyOfTerm tm
 
 fromColored :: (n -> Label) -> (n, Maybe Register64) -> X64.Name
@@ -232,6 +243,9 @@ assemblyOfPrim prim xs dsts =
       (X64.Movzbq, [x], [dst]) ->
         pure [ Movzbq x dst ]
 
+      (X64.Test, [x, y], [Register64 RFLAGS]) ->
+        pure [ Test x y ]
+
       (X64.Cmp, [x, y], [Register64 RFLAGS]) ->
         pure [ Cmpq x y ]
 
@@ -250,3 +264,49 @@ operandOfAtom = \case
     pure $ Register64 x
   Variable a (Lb x) ->
     Left $ LabelCannotBeAtom a x
+
+removeRedundantJumps :: [Instruction] -> [Instruction]
+removeRedundantJumps = \case
+  [] ->
+    []
+
+  Jmp x : Lbl y : xs ->
+    if x == y then
+      Lbl y : removeRedundantJumps xs
+    else
+      Jmp x : Lbl y : removeRedundantJumps xs
+
+  x : xs ->
+    x : removeRedundantJumps xs
+
+removeDeadLabels :: [Instruction] -> [Instruction]
+removeDeadLabels xs =
+  let
+    env =
+      Set.fromList $
+      mapMaybe takeJumpLabel xs
+  in
+    removeDeadLabels' env xs
+
+removeDeadLabels' :: Set Label -> [Instruction] -> [Instruction]
+removeDeadLabels' env = \case
+  [] ->
+    []
+
+  Lbl x : xs ->
+    if Set.member x env then
+      Lbl x : removeDeadLabels' env xs
+    else
+      removeDeadLabels' env xs
+
+  x : xs ->
+    x : removeDeadLabels' env xs
+
+takeJumpLabel :: Instruction -> Maybe Label
+takeJumpLabel = \case
+  J _ x ->
+    Just x
+  Jmp x ->
+    Just x
+  _ ->
+    Nothing

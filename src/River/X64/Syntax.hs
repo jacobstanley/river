@@ -48,8 +48,8 @@ data Cc =
   | Ne -- ^ if not equal
   | L  -- ^ if less than
   | Le -- ^ if less or equal
-  | Gt -- ^ if greater than
-  | G  -- ^ if greater or equal
+  | G  -- ^ if greater than
+  | Ge -- ^ if greater or equal
     deriving (Eq, Ord, Read, Show, Data, Typeable, Generic, NFData)
 
 data Operand64 =

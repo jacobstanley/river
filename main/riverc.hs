@@ -1,7 +1,7 @@
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE OverloadedStrings #-}
 
-import           Control.Monad (unless)
+import           Control.Monad ((<=<), unless)
 import           Control.Monad.Trans.Except (runExceptT)
 
 import           Data.Bifunctor (first)
@@ -15,11 +15,14 @@ import           River.Core.Color
 import           River.Core.Evaluate
 import           River.Core.Fresh
 import qualified River.Core.Pretty as Core
-import           River.Core.Transform.Coalesce
+import           River.Core.Transform.Copy
+import           River.Core.Transform.Dead
 import           River.Core.Transform.Grail
 import           River.Core.Transform.Jump
+import           River.Core.Transform.Redundant
 import           River.Core.Transform.Split
 import           River.Fresh
+import           River.Progress
 import           River.Source.Check
 import           River.Source.Concrete.Parser
 import           River.Source.Elaborate
@@ -29,6 +32,7 @@ import           River.X64.Color
 import           River.X64.FromCore
 import qualified River.X64.Pretty as X64
 import           River.X64.Syntax
+import           River.X64.Transform.Flip
 import           River.X64.Transform.Recondition
 import           River.X64.Transform.Reprim
 
@@ -122,7 +126,8 @@ dump path = do
           runFreshFrom (nextOfProgram core) .
           runExceptT $ do
             pp <- reprimProgram core
-            pj <- jumpOfProgram (reconditionProgram pp)
+            pc <- reconditionProgram pp
+            pj <- jumpOfProgram (flipProgram pc)
             pure (pj, pp)
 
         ejump =
@@ -209,7 +214,7 @@ dump path = do
       putStrLn . fromE ecolored $
         Core.displayProgram' X64.ppCc X64.ppPrim
           (either Core.ppName X64.ppRegister64) .
-        coalesceProgram .
+        fixProgress (redundantOfProgram <=< copyOfProgram <=< deadOfProgram) .
         first fromColored
 
       putStrLn ""

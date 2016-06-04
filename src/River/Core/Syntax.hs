@@ -4,6 +4,7 @@
 {-# LANGUAGE DeriveFunctor #-}
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE DeriveTraversable #-}
+{-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE TemplateHaskell #-}
 --
 -- | The core language, almost all transformations and optimisations take place
@@ -36,6 +37,7 @@ module River.Core.Syntax (
   , Atom(..)
   , Bindings(..)
   , Binding(..)
+  , takeName
   ) where
 
 import           Control.DeepSeq (NFData)
@@ -76,6 +78,13 @@ data Bindings k p n a =
 data Binding k p n a =
     Lambda !a ![n] !(Term k p n a)
     deriving (Eq, Ord, Read, Show, Functor, Foldable, Traversable, Data, Typeable, Generic, NFData)
+
+takeName :: Atom n a -> Maybe n
+takeName = \case
+  Immediate _ _ ->
+    Nothing
+  Variable _ n ->
+    Just n
 
 $(deriveBifunctor ''Program)
 $(deriveBifoldable ''Program)

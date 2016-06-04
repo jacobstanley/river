@@ -147,6 +147,21 @@ precoloredOfTerm = \case
       Let at [hi]     (Copy at [Variable at hi_rdx]) $
       tm
 
+  Let at [r] (Prim ap Test [x, y]) tm0 -> do
+    tm <- precoloredOfTerm tm0
+
+    r_flags <- freshen r
+    r_ah <- freshen r
+
+    putsert r_flags RFLAGS
+    putsert r_ah    RAX
+
+    pure $
+      Let at [r_flags] (Prim ap Test [x, y]) $
+      Let at [r_ah]    (Copy at [Variable at r_flags]) $ -- implicit lahf instruction
+      Let at [r]       (Copy at [Variable at r_ah]) $
+      tm
+
   Let at [r] (Prim ap Cmp [x, y]) tm0 -> do
     tm <- precoloredOfTerm tm0
 

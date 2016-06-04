@@ -210,7 +210,7 @@ ppRegister64 = \case
   R15 ->
     "%r15"
   RFLAGS ->
-    "%rflags"
+    "%flags"
 
 ppRegister8 :: Register64 -> Doc a
 ppRegister8 = \case
@@ -247,7 +247,7 @@ ppRegister8 = \case
   R15 ->
     "%r15b"
   RFLAGS ->
-    "%rflags"
+    "%flags"
 
 ppLabel :: Label -> Doc OutputAnnot
 ppLabel (Label xx) =
@@ -288,6 +288,8 @@ ppPrim = \case
     text "sar"
   X64.Movzbq ->
     text "movzbq"
+  X64.Test ->
+    text "test"
   X64.Cmp ->
     text "cmp"
   X64.Set cc ->
@@ -307,7 +309,7 @@ ppCc = \case
     text "l"
   Le ->
     text "le"
-  Gt ->
-    text "g"
   G ->
+    text "g"
+  Ge ->
     text "ge"

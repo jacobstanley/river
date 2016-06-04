@@ -35,6 +35,7 @@ data Prim =
 
   | Movzbq
 
+  | Test
   | Cmp
   | Set !Cc
     deriving (Eq, Ord, Read, Show, Data, Typeable, Generic, NFData)

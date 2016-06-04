@@ -1,5 +1,7 @@
+{-# LANGUAGE TupleSections #-}
 module River.Map (
     mapDifferenceSet
+  , mapDifferenceList
   , mapIntersectionSet
 
   , mapSetSingleton
@@ -18,6 +20,10 @@ import qualified Data.Set as Set
 mapDifferenceSet :: Ord k => Map k v -> Set k -> Map k v
 mapDifferenceSet m =
   Map.difference m . Map.fromSet (const ())
+
+mapDifferenceList :: Ord k => Map k v -> [k] -> Map k v
+mapDifferenceList m =
+  Map.difference m . Map.fromList . fmap (,())
 
 mapIntersectionSet :: Ord k => Map k v -> Set k -> Map k v
 mapIntersectionSet m =
