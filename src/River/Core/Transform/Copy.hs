@@ -90,6 +90,9 @@ copyOfAtom env = \case
     case Map.lookup n env of
       Nothing ->
         pure $ Variable an n
+      -- TODO I think propagating constants at this stage could be detrimental
+      Just (Immediate _ _) ->
+         pure $ Variable an n
       Just x ->
         progress x
 

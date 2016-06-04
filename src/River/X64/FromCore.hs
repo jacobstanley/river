@@ -226,7 +226,7 @@ assemblyOfPrim prim xs dsts =
         unary Negq x dst
 
       (X64.Add, [x, y], [dst]) ->
-        binary Addq Commutative x y dst
+        binary Addq Commutative y x dst
 
       (X64.Sub, [x, y], [dst]) ->
         binary Subq NotCommutative y x dst
@@ -244,10 +244,10 @@ assemblyOfPrim prim xs dsts =
         pure [ Movzbq x dst ]
 
       (X64.Test, [x, y], [Register64 RFLAGS]) ->
-        pure [ Test x y ]
+        pure [ Test y x ]
 
       (X64.Cmp, [x, y], [Register64 RFLAGS]) ->
-        pure [ Cmpq x y ]
+        pure [ Cmpq y x ]
 
       (X64.Set cc, [Register64 RFLAGS], [dst]) ->
         pure [ Set cc dst ]

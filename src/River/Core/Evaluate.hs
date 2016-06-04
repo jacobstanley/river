@@ -167,11 +167,30 @@ evaluatePrim a p xs =
         Just m ->
           pure [ VInt64 m ]
 
-    (Eq, [VInt64 x, VInt64 y]) ->
-      if x == y then
-        pure [ VInt64 1 ]
-      else
-        pure [ VInt64 0 ]
+    (prim, [VInt64 x, VInt64 y])
+      | Just cmp <- takeIntCmp prim
+      ->
+        if cmp x y then
+          pure [ VInt64 1 ]
+        else
+          pure [ VInt64 0 ]
 
     _ ->
       Left $ InvalidPrimApp a p xs
+
+takeIntCmp :: Prim -> Maybe (Int64 -> Int64 -> Bool)
+takeIntCmp = \case
+  Eq ->
+    Just (==)
+  Ne ->
+    Just (/=)
+  Lt ->
+    Just (<)
+  Le ->
+    Just (<=)
+  Gt ->
+    Just (>)
+  Ge ->
+    Just (>=)
+  _ ->
+    Nothing

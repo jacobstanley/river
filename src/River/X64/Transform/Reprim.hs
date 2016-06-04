@@ -193,16 +193,35 @@ reprimComplex an ns ap p xs =
 
     -- Relations --
 
-    ([dst], Core.Eq, [x, y]) -> do
-      flags <- freshen dst
-      dst8 <- freshen dst
-      pure $
-        Let an [flags]
-          (Prim ap X64.Cmp [x, y]) .
-        Let an [dst8]
-          (Prim ap (X64.Set E) [Variable ap flags]) .
-        Let an [dst]
-          (Prim ap X64.Movzbq [Variable ap dst8])
+    ([dst], prim, [x, y])
+      | Just cc <- takeCC prim
+      -> do
+        flags <- freshen dst
+        dst8 <- freshen dst
+        pure $
+          Let an [flags]
+            (Prim ap X64.Cmp [x, y]) .
+          Let an [dst8]
+            (Prim ap (X64.Set cc) [Variable ap flags]) .
+          Let an [dst]
+            (Prim ap X64.Movzbq [Variable ap dst8])
 
     _ ->
       throwE $ ReprimInvalidPrim ns p xs
+
+takeCC :: Core.Prim -> Maybe Cc
+takeCC = \case
+  Core.Eq ->
+    Just E
+  Core.Ne ->
+    Just Ne
+  Core.Lt ->
+    Just L
+  Core.Le ->
+    Just Le
+  Core.Gt ->
+    Just G
+  Core.Ge ->
+    Just Ge
+  _ ->
+    Nothing
