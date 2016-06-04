@@ -125,7 +125,7 @@ ppTerm ppK ppP ppN = \case
 
   If _ k i t e ->
     vcat [
-        ppKeyword "if" <> ppK k <+> ppAtom ppN i <+> ppKeyword "then"
+        annotate AnnKeyword (text "if" <> ppK k) <+> ppAtom ppN i <+> ppKeyword "then"
       , indent 2 $ ppTerm ppK ppP ppN t
       , ppKeyword "else"
       , indent 2 $ ppTerm ppK ppP ppN e

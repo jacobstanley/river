@@ -1,6 +1,6 @@
 {-# LANGUAGE DeriveFunctor #-}
 {-# LANGUAGE LambdaCase #-}
-module River.Core.Evaluator (
+module River.Core.Evaluate (
     evaluateProgram
   , Value(..)
   , RuntimeError(..)
@@ -166,6 +166,12 @@ evaluatePrim a p xs =
           Left $ ArithError a p xs
         Just m ->
           pure [ VInt64 m ]
+
+    (Eq, [VInt64 x, VInt64 y]) ->
+      if x == y then
+        pure [ VInt64 1 ]
+      else
+        pure [ VInt64 0 ]
 
     _ ->
       Left $ InvalidPrimApp a p xs

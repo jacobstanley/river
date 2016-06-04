@@ -33,7 +33,7 @@ data Prim =
   | Sal
   | Sar
 
-  | Movz
+  | Movzbq
 
   | Cmp
   | Set !Cc

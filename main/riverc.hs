@@ -12,12 +12,12 @@ import qualified Data.Text.IO as T
 import           River.Compile
 import           River.Core.Analysis.Interference
 import           River.Core.Color
-import           River.Core.Evaluator
+import           River.Core.Evaluate
 import           River.Core.Fresh
 import qualified River.Core.Pretty as Core
 import           River.Core.Transform.Coalesce
-import           River.Core.Transform.Else
 import           River.Core.Transform.Grail
+import           River.Core.Transform.Jump
 import           River.Core.Transform.Split
 import           River.Fresh
 import           River.Source.Check
@@ -25,11 +25,12 @@ import           River.Source.Concrete.Parser
 import           River.Source.Elaborate
 import qualified River.Source.Pretty as Source
 import           River.Source.ToCore
-import           River.X64.Assimilate
 import           River.X64.Color
 import           River.X64.FromCore
 import qualified River.X64.Pretty as X64
 import           River.X64.Syntax
+import           River.X64.Transform.Recondition
+import           River.X64.Transform.Reprim
 
 import           System.Environment (getArgs)
 
@@ -116,22 +117,25 @@ dump path = do
         core =
           coreOfProgram abstract
 
-        e_else_assim =
+        recond =
+          reconditionProgram core
+
+        e_jump_reprim =
           first show .
-          runFreshFrom (nextOfProgram core) .
+          runFreshFrom (nextOfProgram recond) .
           runExceptT $ do
-            pa <- assimilateProgram core
-            pe <- elseOfProgram pa
-            pure (pe, pa)
+            pp <- reprimProgram recond
+            pj <- jumpOfProgram pp
+            pure (pj, pp)
 
-        eelse =
-          fmap fst e_else_assim
+        ejump =
+          fmap fst e_jump_reprim
 
-        eassim =
-          fmap snd e_else_assim
+        ereprim =
+          fmap snd e_jump_reprim
 
         egrail = do
-          pe <- eelse
+          pe <- ejump
           pg <- first show $ grailOfProgram pe
           first show $ splitOfProgram pg
 
@@ -162,28 +166,34 @@ dump path = do
         Core.displayProgram core
 
       putStrLn ""
-      putStrLn "-- Core (with x86-64 primitives) --"
+      putStrLn "-- Core (with condition codes) --"
       putStrLn ""
-      putStrLn . fromE eassim $
-        Core.displayProgram' Core.ppKEmpty X64.ppPrim Core.ppName
+      putStrLn $
+        Core.displayProgram' X64.ppCc Core.ppPrim Core.ppName recond
 
       putStrLn ""
-      putStrLn "-- Core (after else hoisting) --"
+      putStrLn "-- Core (with x86-64 primitives) --"
       putStrLn ""
-      putStrLn . fromE eelse $
-        Core.displayProgram' Core.ppKEmpty X64.ppPrim Core.ppName
+      putStrLn . fromE ereprim $
+        Core.displayProgram' X64.ppCc X64.ppPrim Core.ppName
+
+      putStrLn ""
+      putStrLn "-- Core (after jump hoisting) --"
+      putStrLn ""
+      putStrLn . fromE ejump $
+        Core.displayProgram' X64.ppCc X64.ppPrim Core.ppName
 
       putStrLn ""
       putStrLn "-- Core (in grail normal form) --"
       putStrLn ""
       putStrLn . fromE egrail $
-        Core.displayProgram' Core.ppKEmpty X64.ppPrim Core.ppName
+        Core.displayProgram' X64.ppCc X64.ppPrim Core.ppName
 
       putStrLn ""
       putStrLn "-- Core (after precoloring) --"
       putStrLn ""
       putStrLn . fromE eprecolored $
-        Core.displayProgram' Core.ppKEmpty X64.ppPrim
+        Core.displayProgram' X64.ppCc X64.ppPrim
           (Core.ppColor Core.ppName X64.ppRegister64)
 
       putStrLn ""
@@ -198,7 +208,7 @@ dump path = do
       putStrLn "-- Registers Allocated --"
       putStrLn ""
       putStrLn . fromE ecolored $
-        Core.displayProgram' Core.ppKEmpty X64.ppPrim
+        Core.displayProgram' X64.ppCc X64.ppPrim
           (either Core.ppName X64.ppRegister64) .
         first fromColored
 
@@ -206,7 +216,7 @@ dump path = do
       putStrLn "-- Registers Coalesced --"
       putStrLn ""
       putStrLn . fromE ecolored $
-        Core.displayProgram' Core.ppKEmpty X64.ppPrim
+        Core.displayProgram' X64.ppCc X64.ppPrim
           (either Core.ppName X64.ppRegister64) .
         coalesceProgram .
         first fromColored

@@ -1,11 +1,13 @@
 {-# LANGUAGE DeriveFunctor #-}
 {-# LANGUAGE LambdaCase #-}
+--
 -- | Convert from core primitives to x86-64 primitives.
-module River.X64.Assimilate (
-    assimilateProgram
-  , assimilateTerm
+--
+module River.X64.Transform.Reprim (
+    reprimProgram
+  , reprimTerm
 
-  , AssimilateError(..)
+  , ReprimError(..)
   ) where
 
 import           Control.Monad.Trans.Except (ExceptT, throwE)
@@ -18,23 +20,25 @@ import           River.X64.Primitive (Cc(..))
 import qualified River.X64.Primitive as X64
 
 
-data AssimilateError n a =
-    AssimilateInvalidPrim ![n] Core.Prim ![Atom n a]
+data ReprimError n a =
+    ReprimInvalidPrim ![n] Core.Prim ![Atom n a]
     deriving (Eq, Ord, Show, Functor)
 
-assimilateProgram ::
+reprimProgram ::
   FreshName n =>
+  MonadFresh m =>
   Program k Core.Prim n a ->
-  ExceptT (AssimilateError n a) Fresh (Program k X64.Prim n a)
-assimilateProgram = \case
+  ExceptT (ReprimError n a) m (Program k X64.Prim n a)
+reprimProgram = \case
   Program a tm ->
-    Program a <$> assimilateTerm tm
+    Program a <$> reprimTerm tm
 
-assimilateTerm ::
+reprimTerm ::
   FreshName n =>
+  MonadFresh m =>
   Term k Core.Prim n a ->
-  ExceptT (AssimilateError n a) Fresh (Term k X64.Prim n a)
-assimilateTerm = \case
+  ExceptT (ReprimError n a) m (Term k X64.Prim n a)
+reprimTerm = \case
   Return ar (Call ac n xs) ->
     pure $
       Return ar (Call ac n xs)
@@ -43,47 +47,50 @@ assimilateTerm = \case
     -- TODO should be based on arity of tail, not just [n]
     -- TODO need to do arity inference before this is possible.
     n <- newFresh
-    let_tail <- assimilateTail a [n] tl
+    let_tail <- reprimTail a [n] tl
     pure . let_tail $
       Return a (Copy a [Variable a n])
 
   If a k i t e -> do
     If a k i
-      <$> assimilateTerm t
-      <*> assimilateTerm e
+      <$> reprimTerm t
+      <*> reprimTerm e
 
   Let a ns tl tm -> do
-    let_tail <- assimilateTail a ns tl
-    let_tail <$> assimilateTerm tm
+    let_tail <- reprimTail a ns tl
+    let_tail <$> reprimTerm tm
 
   LetRec a bs tm ->
     LetRec a
-      <$> assimilateBindings bs
-      <*> assimilateTerm tm
+      <$> reprimBindings bs
+      <*> reprimTerm tm
 
-assimilateBindings ::
+reprimBindings ::
   FreshName n =>
+  MonadFresh m =>
   Bindings k Core.Prim n a ->
-  ExceptT (AssimilateError n a) Fresh (Bindings k X64.Prim n a)
-assimilateBindings = \case
+  ExceptT (ReprimError n a) m (Bindings k X64.Prim n a)
+reprimBindings = \case
   Bindings a bs ->
-    Bindings a <$> traverse (secondA assimilateBinding) bs
+    Bindings a <$> traverse (secondA reprimBinding) bs
 
-assimilateBinding ::
+reprimBinding ::
   FreshName n =>
+  MonadFresh m =>
   Binding k Core.Prim n a ->
-  ExceptT (AssimilateError n a) Fresh (Binding k X64.Prim n a)
-assimilateBinding = \case
+  ExceptT (ReprimError n a) m (Binding k X64.Prim n a)
+reprimBinding = \case
   Lambda a ns tm ->
-    Lambda a ns <$> assimilateTerm tm
+    Lambda a ns <$> reprimTerm tm
 
-assimilateTail ::
+reprimTail ::
   FreshName n =>
+  MonadFresh m =>
   a ->
   [n] ->
   Tail Core.Prim n a ->
-  ExceptT (AssimilateError n a) Fresh (Term k X64.Prim n a -> Term k X64.Prim n a)
-assimilateTail an ns = \case
+  ExceptT (ReprimError n a) m (Term k X64.Prim n a -> Term k X64.Prim n a)
+reprimTail an ns = \case
   Copy ac xs ->
     pure $
       Let an ns (Copy ac xs)
@@ -93,15 +100,15 @@ assimilateTail an ns = \case
       Let an ns (Call ac n xs)
 
   Prim ap p0 xs -> do
-    case assimilateTrivialPrim p0 of
+    case reprimTrivial p0 of
       Just p ->
         pure $
           Let an ns (Prim ap p xs)
       Nothing ->
-        assimilateComplexPrim an ns ap p0 xs
+        reprimComplex an ns ap p0 xs
 
-assimilateTrivialPrim :: Core.Prim -> Maybe X64.Prim
-assimilateTrivialPrim = \case
+reprimTrivial :: Core.Prim -> Maybe X64.Prim
+reprimTrivial = \case
     -- Trivial cases
     Core.Neg ->
       Just X64.Neg
@@ -125,7 +132,7 @@ assimilateTrivialPrim = \case
     Core.Shr ->
       Just X64.Sar
 
-    -- Complex cases, must be handled by assimilateComplexPrim.
+    -- Complex cases, must be handled by reprimComplex.
     Core.Mul ->
       Nothing
     Core.Div ->
@@ -146,18 +153,16 @@ assimilateTrivialPrim = \case
     Core.Ge ->
       Nothing
 
-assimilateComplexPrim ::
+reprimComplex ::
   FreshName n =>
+  MonadFresh m =>
   a ->
   [n] ->
   a ->
   Core.Prim ->
   [Atom n a] ->
-  ExceptT
-    (AssimilateError n a)
-    Fresh
-    (Term k X64.Prim n a -> Term k X64.Prim n a)
-assimilateComplexPrim an ns ap p xs =
+  ExceptT (ReprimError n a) m (Term k X64.Prim n a -> Term k X64.Prim n a)
+reprimComplex an ns ap p xs =
   case (ns, p, xs) of
 
     -- Arithmetic --
@@ -197,7 +202,7 @@ assimilateComplexPrim an ns ap p xs =
         Let an [dst8]
           (Prim ap (X64.Set E) [Variable ap flags]) .
         Let an [dst]
-          (Prim ap X64.Movz [Variable ap dst8])
+          (Prim ap X64.Movzbq [Variable ap dst8])
 
     _ ->
-      throwE $ AssimilateInvalidPrim ns p xs
+      throwE $ ReprimInvalidPrim ns p xs

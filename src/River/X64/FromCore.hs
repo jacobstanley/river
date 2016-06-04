@@ -15,19 +15,20 @@ import           River.Core.Fresh
 import qualified River.Core.Primitive as Core
 import           River.Core.Syntax
 import           River.Core.Transform.Coalesce
-import           River.Core.Transform.Else
 import           River.Core.Transform.Grail
+import           River.Core.Transform.Jump
 import           River.Core.Transform.Split
 import           River.Fresh
-import           River.X64.Assimilate
 import           River.X64.Color
 import           River.X64.Name as X64
 import qualified River.X64.Primitive as X64
 import           River.X64.Syntax
+import           River.X64.Transform.Recondition
+import           River.X64.Transform.Reprim
 
 
 data X64Error n a =
-    AssimilateError !(AssimilateError n a)
+    ReprimError !(ReprimError n a)
   | GrailError !(GrailError n a)
   | SplitError !(SplitError n a)
   | RegisterAllocationError !(ColorError (RegisterError n) n)
@@ -35,8 +36,8 @@ data X64Error n a =
   | AssemblyInvalidPrim !X64.Prim ![Operand64] ![Operand64]
   | LabelCannotBeAtom !a !Label
   | CannotLetBindLabel !a !Label
-  | MalformedIf !a !(Atom X64.Name a) !(Term () X64.Prim X64.Name a) !(Term () X64.Prim X64.Name a)
-  | MalformedBinding !a !X64.Name !(Binding () X64.Prim X64.Name a)
+  | MalformedIf !a !Cc !(Atom X64.Name a) !(Term Cc X64.Prim X64.Name a) !(Term Cc X64.Prim X64.Name a)
+  | MalformedBinding !a !X64.Name !(Binding Cc X64.Prim X64.Name a)
   | CallNotSupportedYet !a !Label ![Atom X64.Name a]
   | CannotCallRegister !a !Register64 ![Atom X64.Name a]
     deriving (Eq, Ord, Show, Functor)
@@ -54,27 +55,31 @@ assemblyOfProgram mkLabel p0 = do
     runFreshN p =
       runFreshFrom $ nextOfProgram p
 
-  p1 <-
-    first AssimilateError . runFreshN p0 . runExceptT $
-      elseOfProgram =<< assimilateProgram p0
+  let
+    p1 =
+      reconditionProgram p0
 
   p2 <-
-    first GrailError $
-      grailOfProgram p1
+    first ReprimError . runFreshN p1 . runExceptT $
+      jumpOfProgram =<< reprimProgram p1
 
   p3 <-
-    first SplitError $
-      splitOfProgram p2
+    first GrailError $
+      grailOfProgram p2
 
   p4 <-
+    first SplitError $
+      splitOfProgram p3
+
+  p5 <-
     first RegisterAllocationError $
-      coloredOfProgram colorByRegister p3
+      coloredOfProgram colorByRegister p4
 
   let
-    p5 =
-      coalesceProgram $ first (fromColored mkLabel) p4
+    p6 =
+      coalesceProgram $ first (fromColored mkLabel) p5
 
-  case p5 of
+  case p6 of
     Program _ tm ->
       assemblyOfTerm tm
 
@@ -86,7 +91,7 @@ fromColored f (n, mr) =
     Just r ->
       Rg r
 
-assemblyOfTerm :: Term () X64.Prim X64.Name a -> Either (X64Error n a) [Instruction]
+assemblyOfTerm :: Term Cc X64.Prim X64.Name a -> Either (X64Error n a) [Instruction]
 assemblyOfTerm = \case
   Return _ (Copy _ [Variable _ (Rg RAX)]) ->
     pure [ Ret ]
@@ -99,16 +104,16 @@ assemblyOfTerm = \case
       <$> assemblyOfTail [Register64 RAX] tl
       <*> pure [ Ret ]
 
-  If _ () (Variable _ (Rg i)) t (Return _ (Call _ (Lb e) [])) ->
+  If _ Nz (Variable _ (Rg i)) (Return _ (Call _ (Lb t) [])) e ->
     let
       preamble =
         [ Test (Register64 i) (Register64 i)
-        , J Z e ]
+        , J Nz t ]
     in
-      (preamble ++) <$> assemblyOfTerm t
+      (preamble ++) <$> assemblyOfTerm e
 
-  If a () i t e ->
-    Left $ MalformedIf a i t e
+  If a k i t e ->
+    Left $ MalformedIf a k i t e
 
   Let a ns tl tm -> do
     ops <- operandsOfNames a ns
@@ -121,7 +126,7 @@ assemblyOfTerm = \case
       <$> assemblyOfTerm tm
       <*> assemblyOfBindings bs
 
-assemblyOfBindings :: Bindings () X64.Prim X64.Name a -> Either (X64Error n a) [Instruction]
+assemblyOfBindings :: Bindings Cc X64.Prim X64.Name a -> Either (X64Error n a) [Instruction]
 assemblyOfBindings = \case
   Bindings a nbs ->
     let
@@ -134,7 +139,7 @@ assemblyOfBindings = \case
     in
       concat <$> traverse go nbs
 
-assemblyOfBinding :: Binding () X64.Prim X64.Name a -> Either (X64Error n a) [Instruction]
+assemblyOfBinding :: Binding Cc X64.Prim X64.Name a -> Either (X64Error n a) [Instruction]
 assemblyOfBinding = \case
   Lambda _ _ tm ->
     assemblyOfTerm tm
@@ -226,6 +231,15 @@ assemblyOfPrim prim xs dsts =
 
       (X64.Cqto, [Register64 RAX], [Register64 RDX]) ->
         pure [ Cqto ]
+
+      (X64.Movzbq, [x], [dst]) ->
+        pure [ Movzbq x dst ]
+
+      (X64.Cmp, [x, y], [Register64 RFLAGS]) ->
+        pure [ Cmpq x y ]
+
+      (X64.Set cc, [Register64 RFLAGS], [dst]) ->
+        pure [ Set cc dst ]
 
       _ ->
         Left $ AssemblyInvalidPrim prim xs dsts

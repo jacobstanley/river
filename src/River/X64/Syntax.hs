@@ -29,6 +29,7 @@ data Instruction =
   | Imulq !Operand64
   | Cqto
   | Idivq !Operand64
+  | Movzbq !Operand64 !Operand64
   | Lahf
   | Sahf
   | Cmpq !Operand64 !Operand64

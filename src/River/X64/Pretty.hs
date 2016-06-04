@@ -10,9 +10,9 @@ module River.X64.Pretty (
   , ppRegister64
 
   , ppPrim
+  , ppCc
   ) where
 
-import           Data.Char (toLower)
 import qualified Data.Text as T
 import           Data.Word (Word64)
 
@@ -96,33 +96,62 @@ ppProgram =
 ppInstruction :: Instruction -> Doc OutputAnnot
 ppInstruction = \case
   Movq x y ->
-    ppInstructionName "movq" <+> ppOperand64 x <> comma <+> ppOperand64 y
+    ppInstruction' "movq" [x, y]
   Negq x ->
-    ppInstructionName "negq" <+> ppOperand64 x
+    ppInstruction' "negq" [x]
   Addq x y ->
-    ppInstructionName "addq" <+> ppOperand64 x <> comma <+> ppOperand64 y
+    ppInstruction' "addq" [x, y]
   Subq x y ->
-    ppInstructionName "subq" <+> ppOperand64 x <> comma <+> ppOperand64 y
+    ppInstruction' "subq" [x, y]
   Imulq x ->
-    ppInstructionName "imulq" <+> ppOperand64 x
+    ppInstruction' "imulq" [x]
   Cqto ->
-    ppInstructionName "cqto"
+    ppInstruction' "cqto" []
   Idivq x ->
-    ppInstructionName "idivq" <+> ppOperand64 x
+    ppInstruction' "idivq" [x]
+  Movzbq (Register64 x) y ->
+    ppInstructionName "movzbq"
+      <+> annotate AnnRegister (ppRegister8 x) <> comma
+      <+> ppOperand y
+  Movzbq x y ->
+    ppInstruction' "movzbq" [x, y] -- not legit
+  Lahf ->
+    ppInstruction' "lahf" []
+  Sahf ->
+    ppInstruction' "sahf" []
   Cmpq x y ->
-    ppInstructionName "cmpq" <+> ppOperand64 x <> comma <+> ppOperand64 y
+    ppInstruction' "cmpq" [x, y]
   Test x y ->
-    ppInstructionName "test" <+> ppOperand64 x <> comma <+> ppOperand64 y
+    ppInstruction' "test" [x, y]
+  Set cc (Register64 x) ->
+    ppInstructionName' "set" (ppCc cc)
+      <+> annotate AnnRegister (ppRegister8 x)
   Set cc x ->
-    ppInstructionName' "set" (ppCc cc) <+> ppOperand64 x
+    ppInstructionName' "set" (ppCc cc)
+      <+> ppOperand x
   J cc l ->
-    ppInstructionName' "j" (ppCc cc) <+> ppLabel l
+    ppInstructionName' "j" (ppCc cc)
+      <+> ppLabel l
   Jmp l ->
-    ppInstructionName "jmp" <+> ppLabel l
+    ppInstructionName "jmp"
+      <+> ppLabel l
   Lbl l ->
     ppLabel l <> colon
   Ret ->
-    ppInstructionName "ret"
+    ppInstruction' "ret" []
+
+ppInstruction' :: String -> [Operand64] -> Doc OutputAnnot
+ppInstruction' name args =
+  ppInstructionName name <> ppOperands args
+
+ppOperands :: [Operand64] -> Doc OutputAnnot
+ppOperands = \case
+  [] ->
+    empty
+  [x] ->
+    empty <+> ppOperand x
+  x : xs ->
+    empty <+> ppOperand x <> comma <> ppOperands xs
 
 ppInstructionName :: String -> Doc OutputAnnot
 ppInstructionName name =
@@ -133,8 +162,8 @@ ppInstructionName' name imod =
   indent 2 . annotate AnnInstruction $
     text name <> imod
 
-ppOperand64 :: Operand64 -> Doc OutputAnnot
-ppOperand64 = \case
+ppOperand :: Operand64 -> Doc OutputAnnot
+ppOperand = \case
   Immediate64 w ->
     annotate AnnImmediate $
       ppImmediate64 w
@@ -147,8 +176,78 @@ ppImmediate64 w =
   "$" <> integer (fromIntegral w)
 
 ppRegister64 :: Register64 -> Doc a
-ppRegister64 x =
-  "%" <> text (fmap toLower $ show x)
+ppRegister64 = \case
+  RAX ->
+    "%rax"
+  RBX ->
+    "%rbx"
+  RCX ->
+    "%rcx"
+  RDX ->
+    "%rdx"
+  RBP ->
+    "%rbp"
+  RSP ->
+    "%rsp"
+  RSI ->
+    "%rsi"
+  RDI ->
+    "%rdi"
+  R8 ->
+    "%r8"
+  R9 ->
+    "%r9"
+  R10 ->
+    "%r10"
+  R11 ->
+    "%r11"
+  R12 ->
+    "%r12"
+  R13 ->
+    "%r13"
+  R14 ->
+    "%r14"
+  R15 ->
+    "%r15"
+  RFLAGS ->
+    "%rflags"
+
+ppRegister8 :: Register64 -> Doc a
+ppRegister8 = \case
+  RAX ->
+    "%al"
+  RBX ->
+    "%bl"
+  RCX ->
+    "%cl"
+  RDX ->
+    "%dl"
+  RBP ->
+    "%bpl"
+  RSP ->
+    "%spl"
+  RSI ->
+    "%sil"
+  RDI ->
+    "%dil"
+  R8 ->
+    "%r8b"
+  R9 ->
+    "%r9b"
+  R10 ->
+    "%r10b"
+  R11 ->
+    "%r11b"
+  R12 ->
+    "%r12b"
+  R13 ->
+    "%r13b"
+  R14 ->
+    "%r14b"
+  R15 ->
+    "%r15b"
+  RFLAGS ->
+    "%rflags"
 
 ppLabel :: Label -> Doc OutputAnnot
 ppLabel (Label xx) =
@@ -187,8 +286,8 @@ ppPrim = \case
     text "sal"
   X64.Sar ->
     text "sar"
-  X64.Movz ->
-    text "movz"
+  X64.Movzbq ->
+    text "movzbq"
   X64.Cmp ->
     text "cmp"
   X64.Set cc ->
