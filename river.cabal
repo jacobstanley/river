@@ -1,7 +1,7 @@
 name:               river
 version:            0.1.0.0
-synopsis:           CMU 15-411 Labs
-description:        CMU 15-411 Labs
+synopsis:           High level to x86-64 compiler.
+description:        High level to x86-64 compiler.
 homepage:           https://github.com/jystic/river
 license:            BSD3
 license-file:       LICENSE
